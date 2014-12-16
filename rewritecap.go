@@ -10,7 +10,6 @@ import (
 	"code.google.com/p/gopacket/pcapgo"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"strings"
@@ -18,9 +17,11 @@ import (
 )
 
 var sOptPcapSrcFilename = getopt.StringLong("file", 'f', "", "Filename of the source PCAP file", "string")
-var sOptPcapNewFilename = getopt.StringLong("newfile", 'n', "", "Filename for the new PCAP file", "string")
+var sOptPcapNewFilename = getopt.StringLong("filenew", 'n', "", "Filename for the new PCAP file", "string")
 var sOptMacAddress = getopt.StringLong("mac", 0, "", "The MAC Address to change in AA:BB:CC:DD:EE:FF format", "string")
-var sOptNewMacAddress = getopt.StringLong("newmac", 0, "", "The replacement MAC Address, required if mac is used", "string")
+var sOptMacAddressNew = getopt.StringLong("macnew", 0, "", "The replacement MAC Address, required if mac is used", "string")
+var sOptIPv4Address = getopt.StringLong("ip4", 0, "", "The IPv4 Address to change", "string")
+var sOptIPv4AddressNew = getopt.StringLong("ip4new", 0, "", "The replacement IPv4 Address, required if ip4 is used", "string")
 
 var iOptNewYear = getopt.IntLong("year", 'y', 0, "Rebase to Year (yyyy)", "int")
 var iOptNewMonth = getopt.IntLong("month", 'm', 0, "Rebase to Month (mm)", "int")
@@ -29,7 +30,6 @@ var iOptNewDay = getopt.IntLong("day", 'd', 0, "Rebase to Day (dd)", "int")
 var bOptHelp = getopt.BoolLong("help", 0, "Help")
 var bOptVer = getopt.BoolLong("version", 0, "Version")
 
-var iCounter = 0
 var iDebug = 1
 var sVersion = "1.01"
 
@@ -55,7 +55,13 @@ func main() {
 	}
 
 	// Make sure if the user supplies one Layer2 option, that they also supply the other
-	if (*sOptMacAddress != "" && *sOptNewMacAddress == "") || (*sOptNewMacAddress != "" && *sOptMacAddress == "") {
+	if (*sOptMacAddress != "" && *sOptMacAddressNew == "") || (*sOptMacAddressNew != "" && *sOptMacAddress == "") {
+		getopt.Usage()
+		os.Exit(0)
+	}
+
+	// Make sure if the user supplies one Layer3 option, that they also supply the other
+	if (*sOptIPv4Address != "" && *sOptIPv4AddressNew == "") || (*sOptIPv4AddressNew != "" && *sOptIPv4Address == "") {
 		getopt.Usage()
 		os.Exit(0)
 	}
@@ -92,34 +98,62 @@ func main() {
 	//
 	// Figure out if we need to change a layer 2 mac address
 	userSuppliedMacAddress := make([]byte, 6, 6)
-	userSuppliedNewMacAddress := make([]byte, 6, 6)
+	userSuppliedMacAddressNew := make([]byte, 6, 6)
 	if *sOptMacAddress != "" {
-		if iDebug == 1 {
-			fmt.Println("DEBUG: Passed in MAC Address to Change", *sOptMacAddress)
-		}
 		var err error
 		userSuppliedMacAddress, err = net.ParseMAC(*sOptMacAddress)
+
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
+			os.Exit(0)
 		}
 		if iDebug == 1 {
+			fmt.Println("DEBUG: Passed in MAC Address to Change", *sOptMacAddress)
 			fmt.Println("DEBUG: Parsed MAC Address to", userSuppliedMacAddress)
 		}
 	}
-	if *sOptNewMacAddress != "" {
-		if iDebug == 1 {
-			fmt.Println("DEBUG: Passed in MAC Address to Change", *sOptNewMacAddress)
-		}
+	if *sOptMacAddressNew != "" {
 		var err error
-		userSuppliedNewMacAddress, err = net.ParseMAC(*sOptNewMacAddress)
+		userSuppliedMacAddressNew, err = net.ParseMAC(*sOptMacAddressNew)
+
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
+			os.Exit(0)
 		}
 		if iDebug == 1 {
-			fmt.Println("DEBUG: Parsed MAC Address to", userSuppliedNewMacAddress)
+			fmt.Println("DEBUG: Passed in new MAC Address", *sOptMacAddressNew)
+			fmt.Println("DEBUG: Parsed new MAC Address to", userSuppliedMacAddressNew)
 		}
 	}
 	// End compute layer 2 change
+
+	//
+	//
+	//
+	// Figure out if we need to change a layer 3 IPv4 address
+	userSuppliedIPv4Address := make([]byte, 4, 4)
+	userSuppliedIPv4AddressNew := make([]byte, 4, 4)
+	if *sOptIPv4Address != "" {
+		// Since ParseIP returns a 16 byte slice (aka 128 bit address to accomodate IPv6)
+		// just grab what we need
+		userSuppliedIPv4Address = net.ParseIP(*sOptIPv4Address)[12:16]
+
+		if iDebug == 1 {
+			fmt.Println("DEBUG: Passed in IPv4 Address to Change", *sOptIPv4Address)
+			fmt.Println("DEBUG: Parsed IPv4 Address to", userSuppliedIPv4Address)
+		}
+	}
+	if *sOptIPv4AddressNew != "" {
+		// Since ParseIP returns a 16 byte slice (aka 128 bit address to accomodate IPv6)
+		// just grab what we need
+		userSuppliedIPv4AddressNew = net.ParseIP(*sOptIPv4AddressNew)[12:16]
+
+		if iDebug == 1 {
+			fmt.Println("DEBUG: Passed in new IPv4 Address", *sOptIPv4AddressNew)
+			fmt.Println("DEBUG: Parsed new IPv4 Address to", userSuppliedIPv4AddressNew)
+		}
+	}
+	// End compute layer 3 change
 
 	//
 	//
@@ -128,14 +162,16 @@ func main() {
 	// changes as needed.
 	handle, err1 := pcap.OpenOffline(*sOptPcapSrcFilename)
 	if err1 != nil {
-		log.Fatal(err1)
+		fmt.Println(err1)
+		os.Exit(0)
 	}
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 
 	// Create file handle to write to
 	fileHandle, err2 := os.Create(*sOptPcapNewFilename)
 	if err2 != nil {
-		log.Fatal(err2)
+		fmt.Println(err2)
+		os.Exit(0)
 	}
 	writer := pcapgo.NewWriter(fileHandle)
 	writer.WriteFileHeader(65535, handle.LinkType())
@@ -146,6 +182,7 @@ func main() {
 	//
 	//
 	// Loop through every packet and update them as needed writing the changes out to a new file
+	iCounter := 0
 	for packet := range packetSource.Packets() {
 		if iDebug == 1 {
 			fmt.Println("DEBUG: ", "----------------------------------------")
@@ -177,11 +214,11 @@ func main() {
 			bDstMacAddressMatch := areByteSlicesEqual(dstMacAddressFromPacket, userSuppliedMacAddress)
 			if bDstMacAddressMatch {
 				if iDebug == 1 {
-					fmt.Println("There is a match on the DST MAC Address, updating", makePrettyMacAddress(userSuppliedMacAddress), "to", makePrettyMacAddress(userSuppliedNewMacAddress))
+					fmt.Println("There is a match on the DST MAC Address, updating", makePrettyMacAddress(userSuppliedMacAddress), "to", makePrettyMacAddress(userSuppliedMacAddressNew))
 				}
 
 				for i := 0; i < 6; i++ {
-					packet.LinkLayer().LayerContents()[i] = userSuppliedNewMacAddress[i]
+					packet.LinkLayer().LayerContents()[i] = userSuppliedMacAddressNew[i]
 				}
 			}
 
@@ -189,20 +226,51 @@ func main() {
 			bSrcMacAddressMatch := areByteSlicesEqual(srcMacAddressFromPacket, userSuppliedMacAddress)
 			if bSrcMacAddressMatch {
 				if iDebug == 1 {
-					fmt.Println("There is a match on the SRC MAC Address, updating", makePrettyMacAddress(userSuppliedMacAddress), "to", makePrettyMacAddress(userSuppliedNewMacAddress))
+					fmt.Println("There is a match on the SRC MAC Address, updating", makePrettyMacAddress(userSuppliedMacAddress), "to", makePrettyMacAddress(userSuppliedMacAddressNew))
 				}
 
 				j := 0
 				for i := 6; i < 12; i++ {
-					packet.LinkLayer().LayerContents()[i] = userSuppliedNewMacAddress[j]
+					packet.LinkLayer().LayerContents()[i] = userSuppliedMacAddressNew[j]
 					j++
 				}
 			}
 		}
+		// End Update Layer 2 MAC Addresses
 
-		makePrettyMacAddress(packet.LinkLayer().LayerContents()[0:6])
-		//srcMacAddress := packet.LinkLayer().LayerContents()[6:12]
+		if *sOptIPv4Address != "" {
+			if packet.NetworkLayer().LayerContents()[0] == 69 {
+				fmt.Println("DEBUG: Found a Native Frame")
+				srcIPv4AddressFromPacket := packet.NetworkLayer().LayerContents()[12:16]
+				bSrcIPv4AddressMatch := areByteSlicesEqual(srcIPv4AddressFromPacket, userSuppliedIPv4Address)
+				if bSrcIPv4AddressMatch {
+					if iDebug == 1 {
+						fmt.Println("DEBUG: There is a match on the SRC IPv4 Address, updating", userSuppliedIPv4Address, "to", userSuppliedIPv4AddressNew)
+					}
+					j := 0
+					for i := 12; i < 16; i++ {
+						packet.NetworkLayer().LayerContents()[i] = userSuppliedIPv4AddressNew[j]
+						j++
+					}
+				}
 
+				dstIPv4AddressFromPacket := packet.NetworkLayer().LayerContents()[16:20]
+				bDstIPv4AddressMatch := areByteSlicesEqual(dstIPv4AddressFromPacket, userSuppliedIPv4Address)
+				if bDstIPv4AddressMatch {
+					if iDebug == 1 {
+						fmt.Println("DEBUG: There is a match on the DST IPv4 Address, updating", userSuppliedIPv4Address, "to", userSuppliedIPv4AddressNew)
+					}
+					j := 0
+					for i := 16; i < 20; i++ {
+						packet.NetworkLayer().LayerContents()[i] = userSuppliedIPv4AddressNew[j]
+						j++
+					}
+				}
+			}
+			// Need to add support for other types of packets like ARP, 802.1Q etc, things other than type 69
+		}
+
+		//
 		//
 		//
 		// Write the packet out to the new file
@@ -236,7 +304,8 @@ func main() {
 func getFirstPacketTimestamp(sFilename string) time.Time {
 	handle, err := pcap.OpenOffline(sFilename)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		os.Exit(0)
 	}
 	_, packetHeaderInfo, _ := handle.ReadPacketData()
 	ts := packetHeaderInfo.Timestamp
