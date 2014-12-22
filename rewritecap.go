@@ -30,8 +30,8 @@ var iOptNewDay = getopt.IntLong("day", 'd', 0, "Rebase to Day (dd)", "int")
 var bOptHelp = getopt.BoolLong("help", 0, "Help")
 var bOptVer = getopt.BoolLong("version", 0, "Version")
 
-var iDebug = 1
-var sVersion = "1.01"
+var iDebug = 0
+var sVersion = "1.20"
 
 //
 //
