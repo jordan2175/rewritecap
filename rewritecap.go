@@ -160,7 +160,9 @@ func main() {
 
 		// Lets check for ARP packets
 		if packet.LinkLayer().LayerContents()[12] == 8 && packet.LinkLayer().LayerContents()[13] == 6 {
-			fmt.Println("DEBUG: Found an ARP packet")
+			if iDebug == 1 {
+				fmt.Println("DEBUG: Found an ARP packet")
+			}
 
 			// Fix the MAC address in the ARP payload if we are fixing MAC addresses at layer 2
 			if *sOptMacAddress != "" && *sOptMacAddressNew != "" {
