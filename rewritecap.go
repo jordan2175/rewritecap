@@ -54,106 +54,16 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Make sure if the user supplies one Layer2 option, that they also supply the other
-	if (*sOptMacAddress != "" && *sOptMacAddressNew == "") || (*sOptMacAddressNew != "" && *sOptMacAddress == "") {
-		getopt.Usage()
-		os.Exit(0)
-	}
-
-	// Make sure if the user supplies one Layer3 option, that they also supply the other
-	if (*sOptIPv4Address != "" && *sOptIPv4AddressNew == "") || (*sOptIPv4AddressNew != "" && *sOptIPv4Address == "") {
-		getopt.Usage()
-		os.Exit(0)
-	}
-
-	//
-	//
-	//
 	// Figure out if there is a change needed for the date of each packet.  We will
 	// compute the difference between what is in the first packet and what was passed
 	// in via the command line arguments.
-	iDiffYear := 0
-	iDiffMonth := 0
-	iDiffDay := 0
+	iDiffYear, iDiffMonth, iDiffDay := computeNeededPacketDateChange()
 
-	pcapStartTimestamp := getFirstPacketTimestamp(*sOptPcapSrcFilename)
+	// Parse layer 2 addresses
+	userSuppliedMacAddress, userSuppliedMacAddressNew := parseSuppliedLayer2Addresses()
 
-	if *iOptNewYear != 0 {
-		iDiffYear = *iOptNewYear - pcapStartTimestamp.Year()
-	}
-	if *iOptNewMonth != 0 {
-		iDiffMonth = *iOptNewMonth - int(pcapStartTimestamp.Month())
-	}
-	if *iOptNewDay != 0 {
-		iDiffDay = *iOptNewDay - pcapStartTimestamp.Day()
-	}
-
-	if iDebug == 1 {
-		fmt.Println("DEBUG: Y/M/D deltas", iDiffYear, iDiffMonth, iDiffDay)
-	}
-	// End compute date change
-
-	//
-	//
-	//
-	// Figure out if we need to change a layer 2 mac address
-	userSuppliedMacAddress := make([]byte, 6, 6)
-	userSuppliedMacAddressNew := make([]byte, 6, 6)
-	if *sOptMacAddress != "" {
-		var err error
-		userSuppliedMacAddress, err = net.ParseMAC(*sOptMacAddress)
-
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(0)
-		}
-		if iDebug == 1 {
-			fmt.Println("DEBUG: Passed in MAC Address to Change", *sOptMacAddress)
-			fmt.Println("DEBUG: Parsed MAC Address to", userSuppliedMacAddress)
-		}
-	}
-	if *sOptMacAddressNew != "" {
-		var err error
-		userSuppliedMacAddressNew, err = net.ParseMAC(*sOptMacAddressNew)
-
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(0)
-		}
-		if iDebug == 1 {
-			fmt.Println("DEBUG: Passed in new MAC Address", *sOptMacAddressNew)
-			fmt.Println("DEBUG: Parsed new MAC Address to", userSuppliedMacAddressNew)
-		}
-	}
-	// End compute layer 2 change
-
-	//
-	//
-	//
-	// Figure out if we need to change a layer 3 IPv4 address
-	userSuppliedIPv4Address := make([]byte, 4, 4)
-	userSuppliedIPv4AddressNew := make([]byte, 4, 4)
-	if *sOptIPv4Address != "" {
-		// Since ParseIP returns a 16 byte slice (aka 128 bit address to accomodate IPv6)
-		// just grab what we need
-		userSuppliedIPv4Address = net.ParseIP(*sOptIPv4Address)[12:16]
-
-		if iDebug == 1 {
-			fmt.Println("DEBUG: Passed in IPv4 Address to Change", *sOptIPv4Address)
-			fmt.Println("DEBUG: Parsed IPv4 Address to", userSuppliedIPv4Address)
-		}
-	}
-	if *sOptIPv4AddressNew != "" {
-		// Since ParseIP returns a 16 byte slice (aka 128 bit address to accomodate IPv6)
-		// just grab what we need
-		userSuppliedIPv4AddressNew = net.ParseIP(*sOptIPv4AddressNew)[12:16]
-
-		if iDebug == 1 {
-			fmt.Println("DEBUG: Passed in new IPv4 Address", *sOptIPv4AddressNew)
-			fmt.Println("DEBUG: Parsed new IPv4 Address to", userSuppliedIPv4AddressNew)
-		}
-	}
-	// End compute layer 3 change
+	// Parse layer 3 IPv4 address
+	userSuppliedIPv4Address, userSuppliedIPv4AddressNew := parseSuppliedLayer3IPv4Addresses()
 
 	//
 	//
@@ -182,7 +92,8 @@ func main() {
 	//
 	//
 	// Loop through every packet and update them as needed writing the changes out to a new file
-	iCounter := 0
+	iTotalPacketCounter := 0
+	iArpCounter := 0
 	for packet := range packetSource.Packets() {
 		if iDebug == 1 {
 			fmt.Println("DEBUG: ", "----------------------------------------")
@@ -192,6 +103,7 @@ func main() {
 		//
 		//
 		// Make changes to the time stamp of this packet if a change is needed / requested
+		// This change will be made regardless of packet type
 		if iDiffYear != 0 || iDiffMonth != 0 || iDiffDay != 0 {
 			ts := packet.Metadata().CaptureInfo.Timestamp
 			if iDebug == 1 {
@@ -203,18 +115,22 @@ func main() {
 			}
 			packet.Metadata().CaptureInfo.Timestamp = tsNew
 		}
+		// End update date stamp
 
 		//
 		//
 		//
 		// Lets compare the mac address supplied with the one in the pcap file for both
 		// the DST MAC and SRC MAC but only if a MAC address is supplied as an ARG
-		if *sOptMacAddress != "" {
+		// This change will be made regardless of packet type
+		if *sOptMacAddress != "" && *sOptMacAddressNew != "" {
 			dstMacAddressFromPacket := packet.LinkLayer().LayerContents()[0:6]
+			srcMacAddressFromPacket := packet.LinkLayer().LayerContents()[6:12]
+
 			bDstMacAddressMatch := areByteSlicesEqual(dstMacAddressFromPacket, userSuppliedMacAddress)
 			if bDstMacAddressMatch {
 				if iDebug == 1 {
-					fmt.Println("There is a match on the DST MAC Address, updating", makePrettyMacAddress(userSuppliedMacAddress), "to", makePrettyMacAddress(userSuppliedMacAddressNew))
+					fmt.Println("DEBUG: There is a match on the DST MAC Address, updating", makePrettyMacAddress(userSuppliedMacAddress), "to", makePrettyMacAddress(userSuppliedMacAddressNew))
 				}
 
 				for i := 0; i < 6; i++ {
@@ -222,11 +138,10 @@ func main() {
 				}
 			}
 
-			srcMacAddressFromPacket := packet.LinkLayer().LayerContents()[6:12]
 			bSrcMacAddressMatch := areByteSlicesEqual(srcMacAddressFromPacket, userSuppliedMacAddress)
 			if bSrcMacAddressMatch {
 				if iDebug == 1 {
-					fmt.Println("There is a match on the SRC MAC Address, updating", makePrettyMacAddress(userSuppliedMacAddress), "to", makePrettyMacAddress(userSuppliedMacAddressNew))
+					fmt.Println("DEBUG: There is a match on the SRC MAC Address, updating", makePrettyMacAddress(userSuppliedMacAddress), "to", makePrettyMacAddress(userSuppliedMacAddressNew))
 				}
 
 				j := 0
@@ -238,9 +153,88 @@ func main() {
 		}
 		// End Update Layer 2 MAC Addresses
 
-		if *sOptIPv4Address != "" {
-			if packet.NetworkLayer().LayerContents()[0] == 69 {
-				fmt.Println("DEBUG: Found a Native Frame")
+		//
+		// If it is an ARP packet, we may need update the internal MAC and IP addresses
+		// If it is an 802.1Q or QinQ packet, then the offsets will be different
+		//
+
+		// Lets check for ARP packets
+		if packet.LinkLayer().LayerContents()[12] == 8 && packet.LinkLayer().LayerContents()[13] == 6 {
+			fmt.Println("DEBUG: Found an ARP packet")
+
+			// Fix the MAC address in the ARP payload if we are fixing MAC addresses at layer 2
+			if *sOptMacAddress != "" && *sOptMacAddressNew != "" {
+				senderMacAddressFromArpPacket := packet.LinkLayer().LayerPayload()[8:14]
+				targetMacAddressFromArpPacket := packet.LinkLayer().LayerPayload()[18:25]
+
+				bSenderMacAddressMatch := areByteSlicesEqual(senderMacAddressFromArpPacket, userSuppliedMacAddress)
+				if bSenderMacAddressMatch {
+					if iDebug == 1 {
+						fmt.Println("DEBUG: There is a match on the ARP Sender MAC Address, updating", makePrettyMacAddress(userSuppliedMacAddress), "to", makePrettyMacAddress(userSuppliedMacAddressNew))
+					}
+
+					j := 0
+					for i := 8; i < 14; i++ {
+						packet.LinkLayer().LayerPayload()[i] = userSuppliedMacAddressNew[j]
+						j++
+					}
+				}
+
+				bTargetMacAddressMatch := areByteSlicesEqual(targetMacAddressFromArpPacket, userSuppliedMacAddress)
+				if bTargetMacAddressMatch {
+					if iDebug == 1 {
+						fmt.Println("DEBUG: There is a match on the ARP Target MAC Address, updating", makePrettyMacAddress(userSuppliedMacAddress), "to", makePrettyMacAddress(userSuppliedMacAddressNew))
+					}
+
+					j := 0
+					for i := 18; i < 25; i++ {
+						packet.LinkLayer().LayerPayload()[i] = userSuppliedMacAddressNew[j]
+						j++
+					}
+				}
+			}
+
+			// Fix the IP address in the ARP packet if we are changing layer 3 information
+			if *sOptIPv4Address != "" && *sOptIPv4AddressNew != "" {
+				// Make sure the apr.proto.type is 0800
+				if packet.LinkLayer().LayerPayload()[2] == 8 && packet.LinkLayer().LayerPayload()[3] == 0 {
+					if iDebug == 1 {
+						fmt.Println("DEBUG: Found an ARP packet with proto type IP")
+					}
+					senderIPv4AddressFromArpPacket := packet.LinkLayer().LayerPayload()[14:18]
+					bSenderIPv4AddressMatch := areByteSlicesEqual(senderIPv4AddressFromArpPacket, userSuppliedIPv4Address)
+					if bSenderIPv4AddressMatch {
+						if iDebug == 1 {
+							fmt.Println("DEBUG: There is a match on the ARP Sender IPv4 Address, updating", userSuppliedIPv4Address, "to", userSuppliedIPv4AddressNew)
+						}
+						j := 0
+						for i := 14; i < 18; i++ {
+							packet.LinkLayer().LayerPayload()[i] = userSuppliedIPv4AddressNew[j]
+							j++
+						}
+					}
+
+					targetIPv4AddressFromArpPacket := packet.LinkLayer().LayerPayload()[24:28]
+					bTargetIPv4AddressMatch := areByteSlicesEqual(targetIPv4AddressFromArpPacket, userSuppliedIPv4Address)
+					if bTargetIPv4AddressMatch {
+						if iDebug == 1 {
+							fmt.Println("DEBUG: There is a match on the ARP Target IPv4 Address, updating", userSuppliedIPv4Address, "to", userSuppliedIPv4AddressNew)
+						}
+						j := 0
+						for i := 24; i < 28; i++ {
+							packet.LinkLayer().LayerPayload()[i] = userSuppliedIPv4AddressNew[j]
+							j++
+						}
+					}
+				}
+			}
+			iArpCounter++
+		}
+
+		// TODO we need to look at the packet types first so we can handle 802.1Q packets
+		if *sOptIPv4Address != "" && *sOptIPv4AddressNew != "" {
+			// Make sure the eth.type is 0800 and the IP type and size is 0x45
+			if packet.LinkLayer().LayerContents()[12] == 8 && packet.LinkLayer().LayerContents()[13] == 0 && packet.NetworkLayer().LayerContents()[0] == 69 {
 				srcIPv4AddressFromPacket := packet.NetworkLayer().LayerContents()[12:16]
 				bSrcIPv4AddressMatch := areByteSlicesEqual(srcIPv4AddressFromPacket, userSuppliedIPv4Address)
 				if bSrcIPv4AddressMatch {
@@ -267,7 +261,6 @@ func main() {
 					}
 				}
 			}
-			// Need to add support for other types of packets like ARP, 802.1Q etc, things other than type 69
 		}
 
 		//
@@ -277,19 +270,137 @@ func main() {
 		writer.WritePacket(packet.Metadata().CaptureInfo, packet.Data())
 
 		// Write some output to the screen so users know we are doing something
-		iCounter++
-		if iCounter%1000 == 0 {
+		iTotalPacketCounter++
+		if iTotalPacketCounter%1000 == 0 {
 			fmt.Print(".")
-			if iCounter%80000 == 0 {
+			if iTotalPacketCounter%80000 == 0 {
 				fmt.Print("\n")
 			}
 		}
 	} // End loop through every packet
 
 	fileHandle.Close()
-	fmt.Println("\nNumber of packets processed:", iCounter)
+	fmt.Println("\nTotal number of packets processed:", iTotalPacketCounter)
+	fmt.Println("Total number of ARP packets processed:", iArpCounter)
 
 } // main()
+
+//
+//
+//
+// --------------------------------------------------------------------------------
+// computeNeededPacketDateChange()
+// --------------------------------------------------------------------------------
+// Figure out if there is a change needed for the date of each packet.  We will
+// compute the difference between what is in the first packet and what was passed
+// in via the command line arguments.
+func computeNeededPacketDateChange() (iDiffYear, iDiffMonth, iDiffDay int) {
+	iDiffYear = 0
+	iDiffMonth = 0
+	iDiffDay = 0
+
+	pcapStartTimestamp := getFirstPacketTimestamp(*sOptPcapSrcFilename)
+
+	if *iOptNewYear != 0 {
+		iDiffYear = *iOptNewYear - pcapStartTimestamp.Year()
+	}
+	if *iOptNewMonth != 0 {
+		iDiffMonth = *iOptNewMonth - int(pcapStartTimestamp.Month())
+	}
+	if *iOptNewDay != 0 {
+		iDiffDay = *iOptNewDay - pcapStartTimestamp.Day()
+	}
+
+	if iDebug == 1 {
+		fmt.Println("DEBUG: Y/M/D deltas", iDiffYear, iDiffMonth, iDiffDay)
+	}
+	return
+}
+
+//
+//
+//
+// --------------------------------------------------------------------------------
+// parseSuppliedLayer3Addresses
+// --------------------------------------------------------------------------------
+// Figure out if we need to change a layer 2 mac address
+func parseSuppliedLayer2Addresses() (userSuppliedMacAddress, userSuppliedMacAddressNew []byte) {
+	userSuppliedMacAddress = make([]byte, 6, 6)
+	userSuppliedMacAddressNew = make([]byte, 6, 6)
+
+	// Make sure if the user supplies one Layer2 option, that they also supply the other
+	if (*sOptMacAddress != "" && *sOptMacAddressNew == "") || (*sOptMacAddressNew != "" && *sOptMacAddress == "") {
+		getopt.Usage()
+		os.Exit(0)
+	}
+
+	if *sOptMacAddress != "" {
+		var err error
+		userSuppliedMacAddress, err = net.ParseMAC(*sOptMacAddress)
+
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(0)
+		}
+
+		if iDebug == 1 {
+			fmt.Println("DEBUG: Passed in MAC Address to Change", *sOptMacAddress)
+			fmt.Println("DEBUG: Parsed MAC Address to", userSuppliedMacAddress)
+		}
+	}
+	if *sOptMacAddressNew != "" {
+		var err error
+		userSuppliedMacAddressNew, err = net.ParseMAC(*sOptMacAddressNew)
+
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(0)
+		}
+		if iDebug == 1 {
+			fmt.Println("DEBUG: Passed in new MAC Address", *sOptMacAddressNew)
+			fmt.Println("DEBUG: Parsed new MAC Address to", userSuppliedMacAddressNew)
+		}
+	}
+	return
+}
+
+//
+//
+//
+// --------------------------------------------------------------------------------
+// parseSuppliedLayer3IPv4Addresses
+// --------------------------------------------------------------------------------
+// Figure out if we need to change a layer 3 IPv4 address
+func parseSuppliedLayer3IPv4Addresses() (userSuppliedIPv4Address, userSuppliedIPv4AddressNew []byte) {
+	userSuppliedIPv4Address = make([]byte, 4, 4)
+	userSuppliedIPv4AddressNew = make([]byte, 4, 4)
+
+	// Make sure if the user supplies one Layer3 option, that they also supply the other
+	if (*sOptIPv4Address != "" && *sOptIPv4AddressNew == "") || (*sOptIPv4AddressNew != "" && *sOptIPv4Address == "") {
+		getopt.Usage()
+		os.Exit(0)
+	}
+
+	// Since ParseIP returns a 16 byte slice (aka 128 bit address to accomodate IPv6)
+	// just grab what we need
+	if *sOptIPv4Address != "" {
+		userSuppliedIPv4Address = net.ParseIP(*sOptIPv4Address)[12:16]
+
+		if iDebug == 1 {
+			fmt.Println("DEBUG: Passed in IPv4 Address to Change", *sOptIPv4Address)
+			fmt.Println("DEBUG: Parsed IPv4 Address to", userSuppliedIPv4Address)
+		}
+	}
+	if *sOptIPv4AddressNew != "" {
+		userSuppliedIPv4AddressNew = net.ParseIP(*sOptIPv4AddressNew)[12:16]
+
+		if iDebug == 1 {
+			fmt.Println("DEBUG: Passed in new IPv4 Address", *sOptIPv4AddressNew)
+			fmt.Println("DEBUG: Parsed new IPv4 Address to", userSuppliedIPv4AddressNew)
+		}
+	}
+	return
+}
 
 //
 //
