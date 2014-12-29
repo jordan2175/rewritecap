@@ -152,6 +152,7 @@ func main() {
 		} // End Update Layer 2 MAC Addresses
 
 		// TODO: If it is an 802.1Q or QinQ packet, then the offsets will be different
+		i802dot1QOffset := 0
 
 		//
 		//
@@ -165,9 +166,9 @@ func main() {
 
 			// Fix the MAC addresses in the ARP payload if we are fixing MAC addresses at layer 2
 			if *sOptMacAddress != "" && *sOptMacAddressNew != "" {
-				iArpSenderMacStart := 8
+				iArpSenderMacStart := 8 + i802dot1QOffset
 				iArpSenderMacEnd := iArpSenderMacStart + 6
-				iArpTargetMacStart := 18
+				iArpTargetMacStart := 18 + i802dot1QOffset
 				iArpTargetMacEnd := iArpTargetMacStart + 6
 
 				senderMacAddressFromArpPacket := packet.LinkLayer().LayerPayload()[iArpSenderMacStart:iArpSenderMacEnd]
@@ -207,9 +208,9 @@ func main() {
 					if iDebug == 1 {
 						fmt.Println("DEBUG: Found an ARP packet with proto type IP")
 					}
-					iArpSenderIPStart := 14
+					iArpSenderIPStart := 14 + i802dot1QOffset
 					iArpSenderIPEnd := iArpSenderIPStart + 4
-					iArpTargetIPStart := 24
+					iArpTargetIPStart := 24 + i802dot1QOffset
 					iArpTargetIPEnd := iArpTargetIPStart + 4
 
 					senderIPv4AddressFromArpPacket := packet.LinkLayer().LayerPayload()[iArpSenderIPStart:iArpSenderIPEnd]
@@ -247,9 +248,9 @@ func main() {
 		if *sOptIPv4Address != "" && *sOptIPv4AddressNew != "" {
 			// Make sure the eth.type is 0800 and the IP type and size is 0x45
 			if packet.LinkLayer().LayerContents()[12] == 8 && packet.LinkLayer().LayerContents()[13] == 0 && packet.NetworkLayer().LayerContents()[0] == 69 {
-				iLayer3SrcIPStart := 12
+				iLayer3SrcIPStart := 12 + i802dot1QOffset
 				iLayer3SrcIPEnd := iLayer3SrcIPStart + 4
-				iLayer3DstIPStart := 16
+				iLayer3DstIPStart := 16 + i802dot1QOffset
 				iLayer3DstIPEnd := iLayer3DstIPStart + 4
 
 				srcIPv4AddressFromPacket := packet.NetworkLayer().LayerContents()[iLayer3SrcIPStart:iLayer3SrcIPEnd]
