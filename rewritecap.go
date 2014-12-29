@@ -30,8 +30,8 @@ var iOptNewDay = getopt.IntLong("day", 'd', 0, "Rebase to Day (dd)", "int")
 var bOptHelp = getopt.BoolLong("help", 0, "Help")
 var bOptVer = getopt.BoolLong("version", 0, "Version")
 
-var iDebug = 0
-var sVersion = "1.20"
+var iDebug = 1
+var sVersion = "1.21"
 
 //
 //
@@ -165,8 +165,13 @@ func main() {
 
 			// Fix the MAC addresses in the ARP payload if we are fixing MAC addresses at layer 2
 			if *sOptMacAddress != "" && *sOptMacAddressNew != "" {
-				senderMacAddressFromArpPacket := packet.LinkLayer().LayerPayload()[8:14]
-				targetMacAddressFromArpPacket := packet.LinkLayer().LayerPayload()[18:25]
+				iArpSenderMacStart := 8
+				iArpSenderMacEnd := iArpSenderMacStart + 6
+				iArpTargetMacStart := 18
+				iArpTargetMacEnd := iArpTargetMacStart + 6
+
+				senderMacAddressFromArpPacket := packet.LinkLayer().LayerPayload()[iArpSenderMacStart:iArpSenderMacEnd]
+				targetMacAddressFromArpPacket := packet.LinkLayer().LayerPayload()[iArpTargetMacStart:iArpTargetMacEnd]
 
 				bSenderMacAddressMatch := areByteSlicesEqual(senderMacAddressFromArpPacket, userSuppliedMacAddress)
 				if bSenderMacAddressMatch {
@@ -175,7 +180,7 @@ func main() {
 					}
 
 					j := 0
-					for i := 8; i < 14; i++ {
+					for i := iArpSenderMacStart; i < iArpSenderMacEnd; i++ {
 						packet.LinkLayer().LayerPayload()[i] = userSuppliedMacAddressNew[j]
 						j++
 					}
@@ -188,7 +193,7 @@ func main() {
 					}
 
 					j := 0
-					for i := 18; i < 25; i++ {
+					for i := iArpTargetMacStart; i < iArpTargetMacEnd; i++ {
 						packet.LinkLayer().LayerPayload()[i] = userSuppliedMacAddressNew[j]
 						j++
 					}
@@ -202,27 +207,33 @@ func main() {
 					if iDebug == 1 {
 						fmt.Println("DEBUG: Found an ARP packet with proto type IP")
 					}
-					senderIPv4AddressFromArpPacket := packet.LinkLayer().LayerPayload()[14:18]
+					iArpSenderIPStart := 14
+					iArpSenderIPEnd := iArpSenderIPStart + 4
+					iArpTargetIPStart := 24
+					iArpTargetIPEnd := iArpTargetIPStart + 4
+
+					senderIPv4AddressFromArpPacket := packet.LinkLayer().LayerPayload()[iArpSenderIPStart:iArpSenderIPEnd]
+					targetIPv4AddressFromArpPacket := packet.LinkLayer().LayerPayload()[iArpTargetIPStart:iArpTargetIPEnd]
+
 					bSenderIPv4AddressMatch := areByteSlicesEqual(senderIPv4AddressFromArpPacket, userSuppliedIPv4Address)
 					if bSenderIPv4AddressMatch {
 						if iDebug == 1 {
 							fmt.Println("DEBUG: There is a match on the ARP Sender IPv4 Address, updating", userSuppliedIPv4Address, "to", userSuppliedIPv4AddressNew)
 						}
 						j := 0
-						for i := 14; i < 18; i++ {
+						for i := iArpSenderIPStart; i < iArpSenderIPEnd; i++ {
 							packet.LinkLayer().LayerPayload()[i] = userSuppliedIPv4AddressNew[j]
 							j++
 						}
 					}
 
-					targetIPv4AddressFromArpPacket := packet.LinkLayer().LayerPayload()[24:28]
 					bTargetIPv4AddressMatch := areByteSlicesEqual(targetIPv4AddressFromArpPacket, userSuppliedIPv4Address)
 					if bTargetIPv4AddressMatch {
 						if iDebug == 1 {
 							fmt.Println("DEBUG: There is a match on the ARP Target IPv4 Address, updating", userSuppliedIPv4Address, "to", userSuppliedIPv4AddressNew)
 						}
 						j := 0
-						for i := 24; i < 28; i++ {
+						for i := iArpTargetIPStart; i < iArpTargetIPEnd; i++ {
 							packet.LinkLayer().LayerPayload()[i] = userSuppliedIPv4AddressNew[j]
 							j++
 						}
@@ -236,27 +247,33 @@ func main() {
 		if *sOptIPv4Address != "" && *sOptIPv4AddressNew != "" {
 			// Make sure the eth.type is 0800 and the IP type and size is 0x45
 			if packet.LinkLayer().LayerContents()[12] == 8 && packet.LinkLayer().LayerContents()[13] == 0 && packet.NetworkLayer().LayerContents()[0] == 69 {
-				srcIPv4AddressFromPacket := packet.NetworkLayer().LayerContents()[12:16]
+				iLayer3SrcIPStart := 12
+				iLayer3SrcIPEnd := iLayer3SrcIPStart + 4
+				iLayer3DstIPStart := 16
+				iLayer3DstIPEnd := iLayer3DstIPStart + 4
+
+				srcIPv4AddressFromPacket := packet.NetworkLayer().LayerContents()[iLayer3SrcIPStart:iLayer3SrcIPEnd]
+				dstIPv4AddressFromPacket := packet.NetworkLayer().LayerContents()[iLayer3DstIPStart:iLayer3DstIPEnd]
+
 				bSrcIPv4AddressMatch := areByteSlicesEqual(srcIPv4AddressFromPacket, userSuppliedIPv4Address)
 				if bSrcIPv4AddressMatch {
 					if iDebug == 1 {
 						fmt.Println("DEBUG: There is a match on the SRC IPv4 Address, updating", userSuppliedIPv4Address, "to", userSuppliedIPv4AddressNew)
 					}
 					j := 0
-					for i := 12; i < 16; i++ {
+					for i := iLayer3SrcIPStart; i < iLayer3SrcIPEnd; i++ {
 						packet.NetworkLayer().LayerContents()[i] = userSuppliedIPv4AddressNew[j]
 						j++
 					}
 				}
 
-				dstIPv4AddressFromPacket := packet.NetworkLayer().LayerContents()[16:20]
 				bDstIPv4AddressMatch := areByteSlicesEqual(dstIPv4AddressFromPacket, userSuppliedIPv4Address)
 				if bDstIPv4AddressMatch {
 					if iDebug == 1 {
 						fmt.Println("DEBUG: There is a match on the DST IPv4 Address, updating", userSuppliedIPv4Address, "to", userSuppliedIPv4AddressNew)
 					}
 					j := 0
-					for i := 16; i < 20; i++ {
+					for i := iLayer3DstIPStart; i < iLayer3DstIPEnd; i++ {
 						packet.NetworkLayer().LayerContents()[i] = userSuppliedIPv4AddressNew[j]
 						j++
 					}
