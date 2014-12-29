@@ -114,8 +114,7 @@ func main() {
 				fmt.Println("DEBUG: Updated timestamp", tsNew)
 			}
 			packet.Metadata().CaptureInfo.Timestamp = tsNew
-		}
-		// End update date stamp
+		} // End update date stamp
 
 		//
 		//
@@ -150,21 +149,21 @@ func main() {
 					j++
 				}
 			}
-		}
-		// End Update Layer 2 MAC Addresses
+		} // End Update Layer 2 MAC Addresses
 
+		// TODO: If it is an 802.1Q or QinQ packet, then the offsets will be different
+
+		//
+		//
 		//
 		// If it is an ARP packet, we may need update the internal MAC and IP addresses
-		// If it is an 802.1Q or QinQ packet, then the offsets will be different
-		//
-
 		// Lets check for ARP packets
 		if packet.LinkLayer().LayerContents()[12] == 8 && packet.LinkLayer().LayerContents()[13] == 6 {
 			if iDebug == 1 {
 				fmt.Println("DEBUG: Found an ARP packet")
 			}
 
-			// Fix the MAC address in the ARP payload if we are fixing MAC addresses at layer 2
+			// Fix the MAC addresses in the ARP payload if we are fixing MAC addresses at layer 2
 			if *sOptMacAddress != "" && *sOptMacAddressNew != "" {
 				senderMacAddressFromArpPacket := packet.LinkLayer().LayerPayload()[8:14]
 				targetMacAddressFromArpPacket := packet.LinkLayer().LayerPayload()[18:25]
@@ -194,9 +193,9 @@ func main() {
 						j++
 					}
 				}
-			}
+			} // End fix MAC addresses in the ARP payload
 
-			// Fix the IP address in the ARP packet if we are changing layer 3 information
+			// Fix the IP addresses in the ARP payload if we are changing layer 3 information
 			if *sOptIPv4Address != "" && *sOptIPv4AddressNew != "" {
 				// Make sure the apr.proto.type is 0800
 				if packet.LinkLayer().LayerPayload()[2] == 8 && packet.LinkLayer().LayerPayload()[3] == 0 {
@@ -229,11 +228,11 @@ func main() {
 						}
 					}
 				}
-			}
+			} // End fix the IP addresses in the ARP payload
 			iArpCounter++
-		}
+		} // End ARP Packets
 
-		// TODO we need to look at the packet types first so we can handle 802.1Q packets
+		// Change Layer 3 information
 		if *sOptIPv4Address != "" && *sOptIPv4AddressNew != "" {
 			// Make sure the eth.type is 0800 and the IP type and size is 0x45
 			if packet.LinkLayer().LayerContents()[12] == 8 && packet.LinkLayer().LayerContents()[13] == 0 && packet.NetworkLayer().LayerContents()[0] == 69 {
@@ -263,7 +262,7 @@ func main() {
 					}
 				}
 			}
-		}
+		} // End Layer 3 changes
 
 		//
 		//
@@ -278,7 +277,8 @@ func main() {
 			if iTotalPacketCounter%80000 == 0 {
 				fmt.Print("\n")
 			}
-		}
+		} // screen feedback
+
 	} // End loop through every packet
 
 	fileHandle.Close()
@@ -317,7 +317,7 @@ func computeNeededPacketDateChange() (iDiffYear, iDiffMonth, iDiffDay int) {
 		fmt.Println("DEBUG: Y/M/D deltas", iDiffYear, iDiffMonth, iDiffDay)
 	}
 	return
-}
+} // computeNeededPacketDateChange
 
 //
 //
@@ -364,7 +364,7 @@ func parseSuppliedLayer2Addresses() (userSuppliedMacAddress, userSuppliedMacAddr
 		}
 	}
 	return
-}
+} // parseSuppliedLayer2Addresses
 
 //
 //
@@ -402,7 +402,7 @@ func parseSuppliedLayer3IPv4Addresses() (userSuppliedIPv4Address, userSuppliedIP
 		}
 	}
 	return
-}
+} // parseSuppliedLayer3IPv4Addresses
 
 //
 //
@@ -426,7 +426,7 @@ func getFirstPacketTimestamp(sFilename string) time.Time {
 		fmt.Println("DEBUG: Timestamp of first packet", ts)
 	}
 	return ts
-}
+} // getFirstPacketTimestamp
 
 //
 //
@@ -452,7 +452,7 @@ func makePrettyMacAddress(mac []byte) string {
 	}
 
 	return sNewMAC
-}
+} // makePrettyMacAddress
 
 //
 //
@@ -472,4 +472,4 @@ func areByteSlicesEqual(a, b []byte) bool {
 		}
 	}
 	return true
-}
+} // areByteSlicesEqual
