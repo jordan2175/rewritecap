@@ -447,7 +447,7 @@ func makePrettyMacAddress(mac []byte) string {
 			sNewMAC += ":"
 		}
 	}
-	if iDebug == 2 {
+	if iDebug == 1 {
 		fmt.Println("DEBUG: MAC Address", sNewMAC)
 	}
 
