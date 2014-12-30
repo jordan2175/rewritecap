@@ -30,8 +30,8 @@ var iOptNewDay = getopt.IntLong("day", 'd', 0, "Rebase to Day (dd)", "int")
 var bOptHelp = getopt.BoolLong("help", 0, "Help")
 var bOptVer = getopt.BoolLong("version", 0, "Version")
 
-var iDebug = 1
-var sVersion = "1.21"
+var iDebug = 0
+var sVersion = "1.30"
 
 //
 //
@@ -94,6 +94,9 @@ func main() {
 	// Loop through every packet and update them as needed writing the changes out to a new file
 	iTotalPacketCounter := 0
 	iArpCounter := 0
+	i802dot1QCounter := 0
+	i802dot1QinQCounter := 0
+
 	for packet := range packetSource.Packets() {
 		if iDebug == 1 {
 			fmt.Println("DEBUG: ", "----------------------------------------")
@@ -151,21 +154,41 @@ func main() {
 			}
 		} // End Update Layer 2 MAC Addresses
 
-		// TODO: If it is an 802.1Q or QinQ packet, then the offsets will be different
 		i802dot1QOffset := 0
 
+		// Look for an 802.1Q frame
+		if packet.LinkLayer().LayerContents()[12] == 81 && packet.LinkLayer().LayerContents()[13] == 0 {
+			if iDebug == 1 {
+				fmt.Println("DEBUG: Found an 802.1Q packet")
+			}
+			i802dot1QOffset = 4
+			i802dot1QCounter++
+		}
+
+		// Look for an 802.1QinQ frame
+		if packet.LinkLayer().LayerContents()[12] == 88 && packet.LinkLayer().LayerContents()[13] == 168 {
+			if iDebug == 1 {
+				fmt.Println("DEBUG: Found an 802.1QinQ packet")
+			}
+			i802dot1QOffset = 8
+			i802dot1QinQCounter++
+		}
+
+		iEthType1 := 12 + i802dot1QOffset
+		iEthType2 := 13 + i802dot1QOffset
 		//
 		//
 		//
 		// If it is an ARP packet, we may need update the internal MAC and IP addresses
 		// Lets check for ARP packets
-		if packet.LinkLayer().LayerContents()[12] == 8 && packet.LinkLayer().LayerContents()[13] == 6 {
+		if packet.LinkLayer().LayerContents()[iEthType1] == 8 && packet.LinkLayer().LayerContents()[iEthType2] == 6 {
 			if iDebug == 1 {
 				fmt.Println("DEBUG: Found an ARP packet")
 			}
 
 			// Fix the MAC addresses in the ARP payload if we are fixing MAC addresses at layer 2
 			if *sOptMacAddress != "" && *sOptMacAddressNew != "" {
+				// Define the byte offsets for the data we are looking for
 				iArpSenderMacStart := 8 + i802dot1QOffset
 				iArpSenderMacEnd := iArpSenderMacStart + 6
 				iArpTargetMacStart := 18 + i802dot1QOffset
@@ -208,6 +231,7 @@ func main() {
 					if iDebug == 1 {
 						fmt.Println("DEBUG: Found an ARP packet with proto type IP")
 					}
+					// Define the byte offsets for the data we are looking for
 					iArpSenderIPStart := 14 + i802dot1QOffset
 					iArpSenderIPEnd := iArpSenderIPStart + 4
 					iArpTargetIPStart := 24 + i802dot1QOffset
@@ -247,7 +271,9 @@ func main() {
 		// Change Layer 3 information
 		if *sOptIPv4Address != "" && *sOptIPv4AddressNew != "" {
 			// Make sure the eth.type is 0800 and the IP type and size is 0x45
-			if packet.LinkLayer().LayerContents()[12] == 8 && packet.LinkLayer().LayerContents()[13] == 0 && packet.NetworkLayer().LayerContents()[0] == 69 {
+			if packet.LinkLayer().LayerContents()[iEthType1] == 8 && packet.LinkLayer().LayerContents()[iEthType2] == 0 && packet.NetworkLayer().LayerContents()[0] == 69 {
+
+				// Define the byte offsets for the data we are looking for
 				iLayer3SrcIPStart := 12 + i802dot1QOffset
 				iLayer3SrcIPEnd := iLayer3SrcIPStart + 4
 				iLayer3DstIPStart := 16 + i802dot1QOffset
@@ -302,6 +328,8 @@ func main() {
 	fileHandle.Close()
 	fmt.Println("\nTotal number of packets processed:", iTotalPacketCounter)
 	fmt.Println("Total number of ARP packets processed:", iArpCounter)
+	fmt.Println("Total number of 802.1Q packets processed:", i802dot1QCounter)
+	fmt.Println("Total number of 802.1QinQ packets processed:", i802dot1QinQCounter)
 
 } // main()
 
