@@ -31,7 +31,7 @@ documentation and examples.
 ## Contributing ##
 
 Contributions welcome! Please fork the repository and open a pull request
-with your changes.
+with your changes or send me a diff patch file.
 
 ## License ##
 
