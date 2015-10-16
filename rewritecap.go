@@ -8,11 +8,11 @@ package main
 
 import (
 	"code.google.com/p/getopt"
-	"code.google.com/p/gopacket"
-	"code.google.com/p/gopacket/pcap"
-	"code.google.com/p/gopacket/pcapgo"
 	"encoding/hex"
 	"fmt"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/pcap"
+	"github.com/google/gopacket/pcapgo"
 	"net"
 	"os"
 	"strings"
@@ -20,11 +20,11 @@ import (
 )
 
 var sOptPcapSrcFilename = getopt.StringLong("file", 'f', "", "Filename of the source PCAP file", "string")
-var sOptPcapNewFilename = getopt.StringLong("filenew", 'n', "", "Filename for the new PCAP file", "string")
+var sOptPcapNewFilename = getopt.StringLong("file-new", 'n', "", "Filename for the new PCAP file", "string")
 var sOptMacAddress = getopt.StringLong("mac", 0, "", "The MAC Address to change in AA:BB:CC:DD:EE:FF format", "string")
-var sOptMacAddressNew = getopt.StringLong("macnew", 0, "", "The replacement MAC Address, required if mac is used", "string")
+var sOptMacAddressNew = getopt.StringLong("mac-new", 0, "", "The replacement MAC Address, required if mac is used", "string")
 var sOptIPv4Address = getopt.StringLong("ip4", 0, "", "The IPv4 Address to change", "string")
-var sOptIPv4AddressNew = getopt.StringLong("ip4new", 0, "", "The replacement IPv4 Address, required if ip4 is used", "string")
+var sOptIPv4AddressNew = getopt.StringLong("ip4-new", 0, "", "The replacement IPv4 Address, required if ip4 is used", "string")
 
 var iOptNewYear = getopt.IntLong("year", 'y', 0, "Rebase to Year (yyyy)", "int")
 var iOptNewMonth = getopt.IntLong("month", 'm', 0, "Rebase to Month (mm)", "int")
@@ -34,7 +34,7 @@ var bOptHelp = getopt.BoolLong("help", 0, "Help")
 var bOptVer = getopt.BoolLong("version", 0, "Version")
 
 var iDebug = 0
-var sVersion = "1.30"
+var sVersion = "1.40"
 
 //
 //
