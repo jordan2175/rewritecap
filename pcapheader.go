@@ -70,35 +70,14 @@ func computeNeededPacketDateChange(year, month, day int, pcapStartTimestamp time
 // This function will adjust the time of day of the timestamp
 // This change will be made regardless of packet type as it is done on the
 // pcap header not the packet itself
-func changeTimestampTimeOfDay(packet gopacket.Packet, timeDiff time.Duration) {
-	ts := packet.Metadata().CaptureInfo.Timestamp
-	if iDebug == 1 {
-		fmt.Println("DEBUG: Current timestamp", ts)
-	}
-
-	tsNew := ts.Add(timeDiff)
-	if iDebug == 1 {
-		fmt.Println("DEBUG: Updated timestamp", tsNew)
-	}
-	packet.Metadata().CaptureInfo.Timestamp = tsNew
-} // changeTimestampTimeOfDay()
-
-//
-// -----------------------------------------------------------------------------
-// computeNeededPacketTimeChange()
-// -----------------------------------------------------------------------------
-// Figure out if there is a change needed for the time of day of each packet.  We
-// will compute the difference between what is in the first packet and what was
-// passed in via the command line arguments to account for PCAP files that span
-// multiple days, months, or years
-func computeNeededPacketTimeChange(sTime string, pcapStartTimestamp time.Time) time.Duration {
+func changeTimestampTimeOfDay(packet gopacket.Packet, sTime string) {
 	var amountOfTimeChange time.Duration
 	var err error
 
 	if sTime != "" {
 		amountOfTimeChange, err = time.ParseDuration(sTime)
 	} else {
-		amountOfTimeChange, err = time.ParseDuration("0")
+		return
 	}
 
 	if err != nil {
@@ -109,8 +88,18 @@ func computeNeededPacketTimeChange(sTime string, pcapStartTimestamp time.Time) t
 	if iDebug == 1 {
 		fmt.Println("DEBUG: Time delta", amountOfTimeChange.String())
 	}
-	return amountOfTimeChange
-} // computeNeededPacketDateChange()
+
+	ts := packet.Metadata().CaptureInfo.Timestamp
+	if iDebug == 1 {
+		fmt.Println("DEBUG: Current timestamp", ts)
+	}
+
+	tsNew := ts.Add(amountOfTimeChange)
+	if iDebug == 1 {
+		fmt.Println("DEBUG: Updated timestamp", tsNew)
+	}
+	packet.Metadata().CaptureInfo.Timestamp = tsNew
+} // changeTimestampTimeOfDay()
 
 //
 // -----------------------------------------------------------------------------

@@ -25,7 +25,7 @@ var sOptIPv4AddressNew = getopt.StringLong("ip4-new", 0, "", "The replacement IP
 var iOptNewYear = getopt.IntLong("year", 'y', 0, "Rebase to Year (yyyy)", "int")
 var iOptNewMonth = getopt.IntLong("month", 'm', 0, "Rebase to Month (mm)", "int")
 var iOptNewDay = getopt.IntLong("day", 'd', 0, "Rebase to Day (dd)", "int")
-var sOptNewTime = getopt.StringLong("time", 't', "Rebase Time of Day (+/-00h00m00s)", "string")
+var sOptNewTime = getopt.StringLong("time", 't', "", "Rebase Time of Day (+/-00h00m00s)", "string")
 
 var bOptHelp = getopt.BoolLong("help", 0, "Help")
 var bOptVer = getopt.BoolLong("version", 0, "Version")
@@ -50,7 +50,6 @@ func main() {
 	// in via the command line arguments.
 	pcapStartTimestamp := getFirstPacketTimestamp(*sOptPcapSrcFilename)
 	iDiffYear, iDiffMonth, iDiffDay := computeNeededPacketDateChange(*iOptNewYear, *iOptNewMonth, *iOptNewDay, pcapStartTimestamp)
-	diffTime := computeNeededPacketTimeChange(*sOptNewTime, pcapStartTimestamp)
 
 	// Parse layer 2 addresses
 	userSuppliedMacAddress := parseSuppliedLayer2Address(*sOptMacAddress)
@@ -105,8 +104,8 @@ func main() {
 			changeTimestampDate(packet, iDiffYear, iDiffMonth, iDiffDay)
 		}
 
-		if diffTime.Seconds() != 0 {
-			changeTimestampTimeOfDay(packet, diffTime)
+		if *sOptNewTime != "" {
+			changeTimestampTimeOfDay(packet, *sOptNewTime)
 		}
 
 		// ---------------------------------------------------------------------
