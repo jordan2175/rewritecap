@@ -194,23 +194,34 @@ func main() {
 // Verify that all of the command line options meet the required dependencies
 func checkCommandLineOptions() {
 	if *bOptVer {
+		fmt.Println("rewritecap, copyright Bret Jordan, 2015")
 		fmt.Println("Version:", sVersion)
+		fmt.Println("")
 		os.Exit(0)
 	}
 
 	if *bOptHelp || (*sOptPcapSrcFilename == "" || *sOptPcapNewFilename == "") {
+		fmt.Println("rewritecap, copyright Bret Jordan, 2015")
+		fmt.Println("Version:", sVersion)
+		fmt.Println("")
 		getopt.Usage()
 		os.Exit(0)
 	}
 
 	// Make sure if the user supplies a Layer2 address, that they also supply the other
 	if (*sOptMacAddress != "" && *sOptMacAddressNew == "") || (*sOptMacAddressNew != "" && *sOptMacAddress == "") {
+		fmt.Println("rewritecap, copyright Bret Jordan, 2015")
+		fmt.Println("Version:", sVersion)
+		fmt.Println("")
 		getopt.Usage()
 		os.Exit(0)
 	}
 
 	// Make sure if the user supplies a Layer3 address, that they also supply the other
 	if (*sOptIPv4Address != "" && *sOptIPv4AddressNew == "") || (*sOptIPv4AddressNew != "" && *sOptIPv4Address == "") {
+		fmt.Println("rewritecap, copyright Bret Jordan, 2015")
+		fmt.Println("Version:", sVersion)
+		fmt.Println("")
 		getopt.Usage()
 		os.Exit(0)
 	}

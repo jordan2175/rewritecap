@@ -19,8 +19,10 @@ I have produced binaries for Mac OSX 10.10.5 and Ubuntu Linux 14.04 64bit (but s
 ## Installation From Source##
 
 ```
-go get github.com/jordan2175/rewritecap
-go install rewritecap
+go/src/> go get github.com/jordan2175/rewritecap
+go/src/> go install github.com/jordan2175/rewritecap/
+go/src/> cd github.com/jordan2175/rewritecap
+go/src/github.com/jordan2175/rewritecap/> go build -o rewritecap *.go
 ```
 
 ## Usage ##
