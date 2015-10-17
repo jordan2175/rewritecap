@@ -108,8 +108,9 @@ func main() {
 		}
 
 		i802dot1QOffset := 0
-
-		// Look for an 802.1Q frame
+		// ---------------------------------------------------------------------
+		// Look for an 802.1Q frames
+		// ---------------------------------------------------------------------
 		if packet.LinkLayer().LayerContents()[12] == 81 && packet.LinkLayer().LayerContents()[13] == 0 {
 			if iDebug == 1 {
 				fmt.Println("DEBUG: Found an 802.1Q packet")
@@ -118,7 +119,9 @@ func main() {
 			i802dot1QCounter++
 		}
 
+		// ---------------------------------------------------------------------
 		// Look for an 802.1QinQ frame
+		// ---------------------------------------------------------------------
 		if packet.LinkLayer().LayerContents()[12] == 88 && packet.LinkLayer().LayerContents()[13] == 168 {
 			if iDebug == 1 {
 				fmt.Println("DEBUG: Found an 802.1QinQ packet")
@@ -127,13 +130,12 @@ func main() {
 			i802dot1QinQCounter++
 		}
 
+		// ---------------------------------------------------------------------
+		// Look for an ARP frame.  If it is an ARP packet, we may need update the
+		// internal MAC and IP addresses.
+		// ---------------------------------------------------------------------
 		iEthType1 := 12 + i802dot1QOffset
 		iEthType2 := 13 + i802dot1QOffset
-		//
-		//
-		//
-		// If it is an ARP packet, we may need update the internal MAC and IP addresses
-		// Lets check for ARP packets
 		if packet.LinkLayer().LayerContents()[iEthType1] == 8 && packet.LinkLayer().LayerContents()[iEthType2] == 6 {
 			if iDebug == 1 {
 				fmt.Println("DEBUG: Found an ARP packet")
@@ -141,83 +143,14 @@ func main() {
 
 			// Fix the MAC addresses in the ARP payload if we are fixing MAC addresses at layer 2
 			if *sOptMacAddress != "" && *sOptMacAddressNew != "" {
-				// Define the byte offsets for the data we are looking for
-				iArpSenderMacStart := 8 + i802dot1QOffset
-				iArpSenderMacEnd := iArpSenderMacStart + 6
-				iArpTargetMacStart := 18 + i802dot1QOffset
-				iArpTargetMacEnd := iArpTargetMacStart + 6
-
-				senderMacAddressFromArpPacket := packet.LinkLayer().LayerPayload()[iArpSenderMacStart:iArpSenderMacEnd]
-				targetMacAddressFromArpPacket := packet.LinkLayer().LayerPayload()[iArpTargetMacStart:iArpTargetMacEnd]
-
-				bSenderMacAddressMatch := areByteSlicesEqual(senderMacAddressFromArpPacket, userSuppliedMacAddress)
-				if bSenderMacAddressMatch {
-					if iDebug == 1 {
-						fmt.Println("DEBUG: There is a match on the ARP Sender MAC Address, updating", makePrettyMacAddress(userSuppliedMacAddress), "to", makePrettyMacAddress(userSuppliedMacAddressNew))
-					}
-
-					j := 0
-					for i := iArpSenderMacStart; i < iArpSenderMacEnd; i++ {
-						packet.LinkLayer().LayerPayload()[i] = userSuppliedMacAddressNew[j]
-						j++
-					}
-				}
-
-				bTargetMacAddressMatch := areByteSlicesEqual(targetMacAddressFromArpPacket, userSuppliedMacAddress)
-				if bTargetMacAddressMatch {
-					if iDebug == 1 {
-						fmt.Println("DEBUG: There is a match on the ARP Target MAC Address, updating", makePrettyMacAddress(userSuppliedMacAddress), "to", makePrettyMacAddress(userSuppliedMacAddressNew))
-					}
-
-					j := 0
-					for i := iArpTargetMacStart; i < iArpTargetMacEnd; i++ {
-						packet.LinkLayer().LayerPayload()[i] = userSuppliedMacAddressNew[j]
-						j++
-					}
-				}
-			} // End fix MAC addresses in the ARP payload
+				replaceArpPayloadMacAddresses(packet, i802dot1QOffset, userSuppliedMacAddress, userSuppliedMacAddressNew)
+			}
 
 			// Fix the IP addresses in the ARP payload if we are changing layer 3 information
 			if *sOptIPv4Address != "" && *sOptIPv4AddressNew != "" {
-				// Make sure the apr.proto.type is 0800
-				if packet.LinkLayer().LayerPayload()[2] == 8 && packet.LinkLayer().LayerPayload()[3] == 0 {
-					if iDebug == 1 {
-						fmt.Println("DEBUG: Found an ARP packet with proto type IP")
-					}
-					// Define the byte offsets for the data we are looking for
-					iArpSenderIPStart := 14 + i802dot1QOffset
-					iArpSenderIPEnd := iArpSenderIPStart + 4
-					iArpTargetIPStart := 24 + i802dot1QOffset
-					iArpTargetIPEnd := iArpTargetIPStart + 4
+				replaceArpPayloadIPv4Addresses(packet, i802dot1QOffset, userSuppliedIPv4Address, userSuppliedIPv4AddressNew)
+			}
 
-					senderIPv4AddressFromArpPacket := packet.LinkLayer().LayerPayload()[iArpSenderIPStart:iArpSenderIPEnd]
-					targetIPv4AddressFromArpPacket := packet.LinkLayer().LayerPayload()[iArpTargetIPStart:iArpTargetIPEnd]
-
-					bSenderIPv4AddressMatch := areByteSlicesEqual(senderIPv4AddressFromArpPacket, userSuppliedIPv4Address)
-					if bSenderIPv4AddressMatch {
-						if iDebug == 1 {
-							fmt.Println("DEBUG: There is a match on the ARP Sender IPv4 Address, updating", userSuppliedIPv4Address, "to", userSuppliedIPv4AddressNew)
-						}
-						j := 0
-						for i := iArpSenderIPStart; i < iArpSenderIPEnd; i++ {
-							packet.LinkLayer().LayerPayload()[i] = userSuppliedIPv4AddressNew[j]
-							j++
-						}
-					}
-
-					bTargetIPv4AddressMatch := areByteSlicesEqual(targetIPv4AddressFromArpPacket, userSuppliedIPv4Address)
-					if bTargetIPv4AddressMatch {
-						if iDebug == 1 {
-							fmt.Println("DEBUG: There is a match on the ARP Target IPv4 Address, updating", userSuppliedIPv4Address, "to", userSuppliedIPv4AddressNew)
-						}
-						j := 0
-						for i := iArpTargetIPStart; i < iArpTargetIPEnd; i++ {
-							packet.LinkLayer().LayerPayload()[i] = userSuppliedIPv4AddressNew[j]
-							j++
-						}
-					}
-				}
-			} // End fix the IP addresses in the ARP payload
 			iArpCounter++
 		} // End ARP Packets
 
@@ -281,11 +214,9 @@ func checkCommandLineOptions() {
 } //checkCommandLineOptions()
 
 //
-//
-//
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 //  areByteSlicesEqual
-// --------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // Compare two byte slices to see if they are the same
 func areByteSlicesEqual(a, b []byte) bool {
 	if len(a) != len(b) {
