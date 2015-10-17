@@ -79,15 +79,18 @@ func main() {
 
 	fmt.Println("Each '.' represents 1000 packets converted.")
 
-	//
-	//
-	//
-	// Loop through every packet and update them as needed writing the changes out to a new file
+	// -------------------------------------------------------------------------
+	// Define counters for status
+	// -------------------------------------------------------------------------
 	iTotalPacketCounter := 0
 	iArpCounter := 0
 	i802dot1QCounter := 0
 	i802dot1QinQCounter := 0
 
+	// -------------------------------------------------------------------------
+	// Loop through every packet and update them as needed writing the changes
+	// out to a new file
+	// -------------------------------------------------------------------------
 	for packet := range packetSource.Packets() {
 		if iDebug == 1 {
 			fmt.Println("DEBUG: ", "----------------------------------------")
@@ -215,7 +218,7 @@ func checkCommandLineOptions() {
 
 //
 // -----------------------------------------------------------------------------
-//  areByteSlicesEqual
+// areByteSlicesEqual
 // -----------------------------------------------------------------------------
 // Compare two byte slices to see if they are the same
 func areByteSlicesEqual(a, b []byte) bool {
