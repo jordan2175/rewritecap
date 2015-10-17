@@ -12,9 +12,7 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcap"
 	"github.com/google/gopacket/pcapgo"
-	"net"
 	"os"
-	"time"
 )
 
 var sOptPcapSrcFilename = getopt.StringLong("file", 'f', "", "Filename of the source PCAP file", "string")
@@ -49,17 +47,17 @@ func main() {
 	// Figure out if there is a change needed for the date of each packet.  We will
 	// compute the difference between what is in the first packet and what was passed
 	// in via the command line arguments.
-	iDiffYear, iDiffMonth, iDiffDay := computeNeededPacketDateChange()
+	pcapStartTimestamp := getFirstPacketTimestamp(*sOptPcapSrcFilename)
+	iDiffYear, iDiffMonth, iDiffDay := computeNeededPacketDateChange(*iOptNewYear, *iOptNewMonth, *iOptNewDay, pcapStartTimestamp)
 
 	// Parse layer 2 addresses
-	userSuppliedMacAddress := parseSuppliedLayer2Address(sOptMacAddress)
-	userSuppliedMacAddressNew := parseSuppliedLayer2Address(sOptMacAddressNew)
+	userSuppliedMacAddress := parseSuppliedLayer2Address(*sOptMacAddress)
+	userSuppliedMacAddressNew := parseSuppliedLayer2Address(*sOptMacAddressNew)
 
 	// Parse layer 3 IPv4 address
-	userSuppliedIPv4Address, userSuppliedIPv4AddressNew := parseSuppliedLayer3IPv4Addresses()
+	userSuppliedIPv4Address := parseSuppliedLayer3IPv4Address(*sOptIPv4Address)
+	userSuppliedIPv4AddressNew := parseSuppliedLayer3IPv4Address(*sOptIPv4AddressNew)
 
-	//
-	//
 	//
 	// Get a handle to the PCAP source file so we can loop through each packet and make
 	// changes as needed.
@@ -95,23 +93,16 @@ func main() {
 			fmt.Println("DEBUG: ", "----------------------------------------")
 		}
 
-		//
-		//
-		//
-		// Make changes to the time stamp of this packet if a change is needed / requested
-		// This change will be made regardless of packet type
+		// ---------------------------------------------------------------------
+		// Change timestamps in the PCAP header as needed
+		// ---------------------------------------------------------------------
 		if iDiffYear != 0 || iDiffMonth != 0 || iDiffDay != 0 {
-			ts := packet.Metadata().CaptureInfo.Timestamp
-			if iDebug == 1 {
-				fmt.Println("DEBUG: Current timestamp", ts)
-			}
-			tsNew := ts.AddDate(iDiffYear, iDiffMonth, iDiffDay)
-			if iDebug == 1 {
-				fmt.Println("DEBUG: Updated timestamp", tsNew)
-			}
-			packet.Metadata().CaptureInfo.Timestamp = tsNew
-		} // End update date stamp
+			changeTimestampDate(packet, iDiffYear, iDiffMonth, iDiffDay)
+		}
 
+		// ---------------------------------------------------------------------
+		// Change layer 2 MAC addresses as needed
+		// ---------------------------------------------------------------------
 		if *sOptMacAddress != "" && *sOptMacAddressNew != "" {
 			replaceMacAddresses(packet, userSuppliedMacAddress, userSuppliedMacAddressNew)
 		}
@@ -230,48 +221,13 @@ func main() {
 			iArpCounter++
 		} // End ARP Packets
 
+		// ---------------------------------------------------------------------
 		// Change Layer 3 information
+		// ---------------------------------------------------------------------
 		if *sOptIPv4Address != "" && *sOptIPv4AddressNew != "" {
-			// Make sure the eth.type is 0800 and the IP type and size is 0x45
-			if packet.LinkLayer().LayerContents()[iEthType1] == 8 && packet.LinkLayer().LayerContents()[iEthType2] == 0 && packet.NetworkLayer().LayerContents()[0] == 69 {
+			replaceIPv4Addresses(packet, i802dot1QOffset, userSuppliedIPv4Address, userSuppliedIPv4AddressNew)
+		}
 
-				// Define the byte offsets for the data we are looking for
-				iLayer3SrcIPStart := 12 + i802dot1QOffset
-				iLayer3SrcIPEnd := iLayer3SrcIPStart + 4
-				iLayer3DstIPStart := 16 + i802dot1QOffset
-				iLayer3DstIPEnd := iLayer3DstIPStart + 4
-
-				srcIPv4AddressFromPacket := packet.NetworkLayer().LayerContents()[iLayer3SrcIPStart:iLayer3SrcIPEnd]
-				dstIPv4AddressFromPacket := packet.NetworkLayer().LayerContents()[iLayer3DstIPStart:iLayer3DstIPEnd]
-
-				bSrcIPv4AddressMatch := areByteSlicesEqual(srcIPv4AddressFromPacket, userSuppliedIPv4Address)
-				if bSrcIPv4AddressMatch {
-					if iDebug == 1 {
-						fmt.Println("DEBUG: There is a match on the SRC IPv4 Address, updating", userSuppliedIPv4Address, "to", userSuppliedIPv4AddressNew)
-					}
-					j := 0
-					for i := iLayer3SrcIPStart; i < iLayer3SrcIPEnd; i++ {
-						packet.NetworkLayer().LayerContents()[i] = userSuppliedIPv4AddressNew[j]
-						j++
-					}
-				}
-
-				bDstIPv4AddressMatch := areByteSlicesEqual(dstIPv4AddressFromPacket, userSuppliedIPv4Address)
-				if bDstIPv4AddressMatch {
-					if iDebug == 1 {
-						fmt.Println("DEBUG: There is a match on the DST IPv4 Address, updating", userSuppliedIPv4Address, "to", userSuppliedIPv4AddressNew)
-					}
-					j := 0
-					for i := iLayer3DstIPStart; i < iLayer3DstIPEnd; i++ {
-						packet.NetworkLayer().LayerContents()[i] = userSuppliedIPv4AddressNew[j]
-						j++
-					}
-				}
-			}
-		} // End Layer 3 changes
-
-		//
-		//
 		//
 		// Write the packet out to the new file
 		writer.WritePacket(packet.Metadata().CaptureInfo, packet.Data())
@@ -311,103 +267,18 @@ func checkCommandLineOptions() {
 		os.Exit(0)
 	}
 
+	// Make sure if the user supplies a Layer2 address, that they also supply the other
 	if (*sOptMacAddress != "" && *sOptMacAddressNew == "") || (*sOptMacAddressNew != "" && *sOptMacAddress == "") {
 		getopt.Usage()
 		os.Exit(0)
 	}
-}
 
-//
-// --------------------------------------------------------------------------------
-// computeNeededPacketDateChange()
-// --------------------------------------------------------------------------------
-// Figure out if there is a change needed for the date of each packet.  We will
-// compute the difference between what is in the first packet and what was passed
-// in via the command line arguments.
-func computeNeededPacketDateChange() (iDiffYear, iDiffMonth, iDiffDay int) {
-	iDiffYear = 0
-	iDiffMonth = 0
-	iDiffDay = 0
-
-	pcapStartTimestamp := getFirstPacketTimestamp(*sOptPcapSrcFilename)
-
-	if *iOptNewYear != 0 {
-		iDiffYear = *iOptNewYear - pcapStartTimestamp.Year()
-	}
-	if *iOptNewMonth != 0 {
-		iDiffMonth = *iOptNewMonth - int(pcapStartTimestamp.Month())
-	}
-	if *iOptNewDay != 0 {
-		iDiffDay = *iOptNewDay - pcapStartTimestamp.Day()
-	}
-
-	if iDebug == 1 {
-		fmt.Println("DEBUG: Y/M/D deltas", iDiffYear, iDiffMonth, iDiffDay)
-	}
-	return
-} // computeNeededPacketDateChange
-
-//
-//
-//
-// --------------------------------------------------------------------------------
-// parseSuppliedLayer3IPv4Addresses
-// --------------------------------------------------------------------------------
-// Figure out if we need to change a layer 3 IPv4 address
-func parseSuppliedLayer3IPv4Addresses() (userSuppliedIPv4Address, userSuppliedIPv4AddressNew []byte) {
-	userSuppliedIPv4Address = make([]byte, 4, 4)
-	userSuppliedIPv4AddressNew = make([]byte, 4, 4)
-
-	// Make sure if the user supplies one Layer3 option, that they also supply the other
+	// Make sure if the user supplies a Layer3 address, that they also supply the other
 	if (*sOptIPv4Address != "" && *sOptIPv4AddressNew == "") || (*sOptIPv4AddressNew != "" && *sOptIPv4Address == "") {
 		getopt.Usage()
 		os.Exit(0)
 	}
-
-	// Since ParseIP returns a 16 byte slice (aka 128 bit address to accomodate IPv6)
-	// just grab what we need
-	if *sOptIPv4Address != "" {
-		userSuppliedIPv4Address = net.ParseIP(*sOptIPv4Address)[12:16]
-
-		if iDebug == 1 {
-			fmt.Println("DEBUG: Passed in IPv4 Address to Change", *sOptIPv4Address)
-			fmt.Println("DEBUG: Parsed IPv4 Address to", userSuppliedIPv4Address)
-		}
-	}
-	if *sOptIPv4AddressNew != "" {
-		userSuppliedIPv4AddressNew = net.ParseIP(*sOptIPv4AddressNew)[12:16]
-
-		if iDebug == 1 {
-			fmt.Println("DEBUG: Passed in new IPv4 Address", *sOptIPv4AddressNew)
-			fmt.Println("DEBUG: Parsed new IPv4 Address to", userSuppliedIPv4AddressNew)
-		}
-	}
-	return
-} // parseSuppliedLayer3IPv4Addresses
-
-//
-//
-//
-// --------------------------------------------------------------------------------
-// getFirstPacketTimestamp
-// --------------------------------------------------------------------------------
-// We need to open the pcap file and read the timestamp from the first packet so
-// that we can figure out an offset for all future packets.  This will address the
-// problem of the pcap spanning multiple days, months, years  as we will always
-// add the same amount of offset to each packet.
-func getFirstPacketTimestamp(sFilename string) time.Time {
-	handle, err := pcap.OpenOffline(sFilename)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(0)
-	}
-	_, packetHeaderInfo, _ := handle.ReadPacketData()
-	ts := packetHeaderInfo.Timestamp
-	if iDebug == 1 {
-		fmt.Println("DEBUG: Timestamp of first packet", ts)
-	}
-	return ts
-} // getFirstPacketTimestamp
+} //checkCommandLineOptions()
 
 //
 //
