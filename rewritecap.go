@@ -13,6 +13,7 @@ import (
 	"github.com/google/gopacket/pcap"
 	"github.com/google/gopacket/pcapgo"
 	"os"
+	"strings"
 )
 
 var sOptPcapSrcFilename = getopt.StringLong("file", 'f', "", "Filename of the source PCAP file", "string")
@@ -25,7 +26,7 @@ var sOptIPv4AddressNew = getopt.StringLong("ip4-new", 0, "", "The replacement IP
 var iOptNewYear = getopt.IntLong("year", 'y', 0, "Rebase to Year (yyyy)", "int")
 var iOptNewMonth = getopt.IntLong("month", 'm', 0, "Rebase to Month (mm)", "int")
 var iOptNewDay = getopt.IntLong("day", 'd', 0, "Rebase to Day (dd)", "int")
-var sOptTimeShift = getopt.StringLong("time-shift", 0, "", "Rebase Time of Day (+/-00h00m00s)", "string")
+var sOptTimeShift = getopt.StringLong("time-shift", 0, "", "Rebase Time of Day (+/-00h00m00s) supports multiple values separated by a comma", "string")
 
 var bOptHelp = getopt.BoolLong("help", 0, "Help")
 var bOptVer = getopt.BoolLong("version", 0, "Version")
@@ -50,6 +51,9 @@ func main() {
 	// in via the command line arguments.
 	pcapStartTimestamp := getFirstPacketTimestamp(*sOptPcapSrcFilename)
 	iDiffYear, iDiffMonth, iDiffDay := computeNeededPacketDateChange(*iOptNewYear, *iOptNewMonth, *iOptNewDay, pcapStartTimestamp)
+
+	// Allow for multiple time shifts to be passed in at once
+	timeShifts := strings.Split(*sOptTimeShift, ",")
 
 	// Parse layer 2 addresses
 	userSuppliedMacAddress := parseSuppliedLayer2Address(*sOptMacAddress)
@@ -105,7 +109,11 @@ func main() {
 		}
 
 		if *sOptTimeShift != "" {
-			changeTimestampTimeOfDay(packet, *sOptTimeShift)
+			// Allow for multiple time shifts to be passed at once
+			for _, ts := range timeShifts {
+				changeTimestampTimeOfDay(packet, ts)
+			}
+
 		}
 
 		// ---------------------------------------------------------------------
