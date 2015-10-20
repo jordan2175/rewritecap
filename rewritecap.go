@@ -25,13 +25,13 @@ var sOptIPv4AddressNew = getopt.StringLong("ip4-new", 0, "", "The replacement IP
 var iOptNewYear = getopt.IntLong("year", 'y', 0, "Rebase to Year (yyyy)", "int")
 var iOptNewMonth = getopt.IntLong("month", 'm', 0, "Rebase to Month (mm)", "int")
 var iOptNewDay = getopt.IntLong("day", 'd', 0, "Rebase to Day (dd)", "int")
-var sOptNewTime = getopt.StringLong("time", 't', "", "Rebase Time of Day (+/-00h00m00s)", "string")
+var sOptTimeShift = getopt.StringLong("time-shift", 0, "", "Rebase Time of Day (+/-00h00m00s)", "string")
 
 var bOptHelp = getopt.BoolLong("help", 0, "Help")
 var bOptVer = getopt.BoolLong("version", 0, "Version")
 
 var iDebug = 0
-var sVersion = "1.40"
+var sVersion = "1.41"
 
 //
 //
@@ -40,7 +40,7 @@ var sVersion = "1.40"
 // Function Main
 // --------------------------------------------------------------------------------
 func main() {
-	getopt.HelpColumn = 25
+	getopt.HelpColumn = 26
 	getopt.SetParameters("")
 	getopt.Parse()
 	checkCommandLineOptions()
@@ -104,8 +104,8 @@ func main() {
 			changeTimestampDate(packet, iDiffYear, iDiffMonth, iDiffDay)
 		}
 
-		if *sOptNewTime != "" {
-			changeTimestampTimeOfDay(packet, *sOptNewTime)
+		if *sOptTimeShift != "" {
+			changeTimestampTimeOfDay(packet, *sOptTimeShift)
 		}
 
 		// ---------------------------------------------------------------------
@@ -211,6 +211,15 @@ func checkCommandLineOptions() {
 		fmt.Println("")
 		getopt.Usage()
 		os.Exit(0)
+	}
+
+	if *sOptPcapSrcFilename == *sOptPcapNewFilename {
+		fmt.Println("rewritecap, copyright Bret Jordan, 2015")
+		fmt.Println("Version:", sVersion)
+		fmt.Println("")
+		fmt.Println("Filenames are the same.")
+		os.Exit(0)
+
 	}
 
 	// Make sure if the user supplies a Layer2 address, that they also supply the other
