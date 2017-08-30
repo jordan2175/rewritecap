@@ -10,7 +10,7 @@ or the inter-frame gaps.  You can also timeshift all of the packets by a value i
 +/-00h00m00s format.  Multiple timeshifts can be specified at the same time by 
 separating them with a comma, thus --time-shift=2h,-3m
 
-I wrote this using Go (golang) v1.5
+I wrote this using Go (golang) v1.8.3
 
 For command line flags run, ./rewritecap --help  
 
@@ -24,7 +24,7 @@ I have produced binaries for Mac OSX 10.10.5 and Ubuntu Linux 14.04 64bit (but s
 go/src/> go get github.com/jordan2175/rewritecap
 go/src/> go install github.com/jordan2175/rewritecap/
 go/src/> cd github.com/jordan2175/rewritecap
-go/src/github.com/jordan2175/rewritecap/> go build -o rewritecap *.go
+go/src/github.com/jordan2175/rewritecap/> go build rewritecap.go
 ```
 
 ## Usage ##

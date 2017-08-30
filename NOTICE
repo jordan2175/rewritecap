@@ -1,5 +1,5 @@
 rewritecap
-Copyright 2014-2015 Bret Jordan, All rights reserved
+Copyright 2014-2017 Bret Jordan, All rights reserved
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@ limitations under the License.
 
 This software uses the following libraries:
 getopt
-    Copyright (c) 2013 Google Inc. All rights reserved.
+    Copyright (c) 2017 Google Inc. All rights reserved.
 
 gopacket
     Copyright (c) 2012 Google, Inc. All rights reserved.

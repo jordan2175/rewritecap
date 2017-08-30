@@ -1,35 +1,38 @@
-// Copyright 2014-2015 Bret Jordan, All rights reserved.
+// Copyright 2014-2017 Bret Jordan, All rights reserved.
 //
 // Use of this source code is governed by an Apache 2.0 license
 // that can be found in the LICENSE file in the root of the source
 // tree.
 
-package main
+package layer2
 
 import (
 	"encoding/hex"
 	"fmt"
 	"github.com/google/gopacket"
+	"github.com/jordan2175/rewritecap/lib/common"
 	"net"
 	"os"
 	"strings"
 )
 
+var iDebug = 0
+
 //
 // -----------------------------------------------------------------------------
-// replaceMacAddresses()
+// ReplaceMacAddresses()
 // -----------------------------------------------------------------------------
 // Lets compare the mac address supplied with the one in the pcap file for both
 // the DST MAC and SRC MAC but only if a MAC address is supplied as an ARG
 // This change will be made regardless of packet type
-func replaceMacAddresses(packet gopacket.Packet, userSuppliedMacAddress, userSuppliedMacAddressNew []byte) {
+func ReplaceMacAddresses(packet gopacket.Packet, userSuppliedMacAddress, userSuppliedMacAddressNew []byte) {
 	dstMacAddressFromPacket := packet.LinkLayer().LayerContents()[0:6]
 	srcMacAddressFromPacket := packet.LinkLayer().LayerContents()[6:12]
 
-	bDstMacAddressMatch := areByteSlicesEqual(dstMacAddressFromPacket, userSuppliedMacAddress)
+	bDstMacAddressMatch := common.AreByteSlicesEqual(dstMacAddressFromPacket, userSuppliedMacAddress)
 	if bDstMacAddressMatch {
 		if iDebug == 1 {
-			fmt.Println("DEBUG: There is a match on the DST MAC Address, updating", makePrettyMacAddress(userSuppliedMacAddress), "to", makePrettyMacAddress(userSuppliedMacAddressNew))
+			fmt.Println("DEBUG: There is a match on the DST MAC Address, updating", MakePrettyMacAddress(userSuppliedMacAddress), "to", MakePrettyMacAddress(userSuppliedMacAddressNew))
 		}
 
 		for i := 0; i < 6; i++ {
@@ -37,10 +40,10 @@ func replaceMacAddresses(packet gopacket.Packet, userSuppliedMacAddress, userSup
 		}
 	}
 
-	bSrcMacAddressMatch := areByteSlicesEqual(srcMacAddressFromPacket, userSuppliedMacAddress)
+	bSrcMacAddressMatch := common.AreByteSlicesEqual(srcMacAddressFromPacket, userSuppliedMacAddress)
 	if bSrcMacAddressMatch {
 		if iDebug == 1 {
-			fmt.Println("DEBUG: There is a match on the SRC MAC Address, updating", makePrettyMacAddress(userSuppliedMacAddress), "to", makePrettyMacAddress(userSuppliedMacAddressNew))
+			fmt.Println("DEBUG: There is a match on the SRC MAC Address, updating", MakePrettyMacAddress(userSuppliedMacAddress), "to", MakePrettyMacAddress(userSuppliedMacAddressNew))
 		}
 
 		j := 0
@@ -49,14 +52,14 @@ func replaceMacAddresses(packet gopacket.Packet, userSuppliedMacAddress, userSup
 			j++
 		}
 	}
-} // replaceMacAddresses()
+} // ReplaceMacAddresses()
 
 //
 // -----------------------------------------------------------------------------
-// parseSuppliedLayer2Address()
+// ParseSuppliedLayer2Address()
 // -----------------------------------------------------------------------------
 // Figure out if we need to change a layer 2 mac address
-func parseSuppliedLayer2Address(mac string) []byte {
+func ParseSuppliedLayer2Address(mac string) []byte {
 	userSuppliedMacAddress := make([]byte, 6, 6)
 
 	if mac != "" {
@@ -75,15 +78,15 @@ func parseSuppliedLayer2Address(mac string) []byte {
 	}
 
 	return userSuppliedMacAddress
-} // parseSuppliedLayer2Address()
+} // ParseSuppliedLayer2Address()
 
 //
 // -----------------------------------------------------------------------------
-//  makePrettyMacAddress()
+//  MakePrettyMacAddress()
 // -----------------------------------------------------------------------------
 // This function will create a human readable MAC address in upper case using
 // the : notation between octets
-func makePrettyMacAddress(mac []byte) string {
+func MakePrettyMacAddress(mac []byte) string {
 	sMAC := strings.ToUpper(hex.EncodeToString(mac))
 	var sNewMAC string
 
@@ -99,4 +102,4 @@ func makePrettyMacAddress(mac []byte) string {
 	}
 
 	return sNewMAC
-} // makePrettyMacAddress()
+} // MakePrettyMacAddress()

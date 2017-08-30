@@ -1,4 +1,4 @@
-// Copyright 2014-2015 Bret Jordan, All rights reserved.
+// Copyright 2014-2017 Bret Jordan, All rights reserved.
 //
 // Use of this source code is governed by an Apache 2.0 license
 // that can be found in the LICENSE file in the root of the source
@@ -7,11 +7,15 @@
 package main
 
 import (
-	"code.google.com/p/getopt"
 	"fmt"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcap"
 	"github.com/google/gopacket/pcapgo"
+	"github.com/jordan2175/rewritecap/lib/arp"
+	"github.com/jordan2175/rewritecap/lib/header"
+	"github.com/jordan2175/rewritecap/lib/layer2"
+	"github.com/jordan2175/rewritecap/lib/layer3"
+	"github.com/pborman/getopt"
 	"os"
 	"strings"
 )
@@ -49,19 +53,19 @@ func main() {
 	// Figure out if there is a change needed for the date of each packet.  We will
 	// compute the difference between what is in the first packet and what was passed
 	// in via the command line arguments.
-	pcapStartTimestamp := getFirstPacketTimestamp(*sOptPcapSrcFilename)
-	iDiffYear, iDiffMonth, iDiffDay := computeNeededPacketDateChange(*iOptNewYear, *iOptNewMonth, *iOptNewDay, pcapStartTimestamp)
+	pcapStartTimestamp := header.GetFirstPacketTimestamp(*sOptPcapSrcFilename)
+	iDiffYear, iDiffMonth, iDiffDay := header.ComputeNeededPacketDateChange(*iOptNewYear, *iOptNewMonth, *iOptNewDay, pcapStartTimestamp)
 
 	// Allow for multiple time shifts to be passed in at once
 	timeShifts := strings.Split(*sOptTimeShift, ",")
 
 	// Parse layer 2 addresses
-	userSuppliedMacAddress := parseSuppliedLayer2Address(*sOptMacAddress)
-	userSuppliedMacAddressNew := parseSuppliedLayer2Address(*sOptMacAddressNew)
+	userSuppliedMacAddress := layer2.ParseSuppliedLayer2Address(*sOptMacAddress)
+	userSuppliedMacAddressNew := layer2.ParseSuppliedLayer2Address(*sOptMacAddressNew)
 
 	// Parse layer 3 IPv4 address
-	userSuppliedIPv4Address := parseSuppliedLayer3IPv4Address(*sOptIPv4Address)
-	userSuppliedIPv4AddressNew := parseSuppliedLayer3IPv4Address(*sOptIPv4AddressNew)
+	userSuppliedIPv4Address := layer3.ParseSuppliedLayer3IPv4Address(*sOptIPv4Address)
+	userSuppliedIPv4AddressNew := layer3.ParseSuppliedLayer3IPv4Address(*sOptIPv4AddressNew)
 
 	//
 	// Get a handle to the PCAP source file so we can loop through each packet and make
@@ -105,13 +109,13 @@ func main() {
 		// Change timestamps in the PCAP header as needed
 		// ---------------------------------------------------------------------
 		if iDiffYear != 0 || iDiffMonth != 0 || iDiffDay != 0 {
-			changeTimestampDate(packet, iDiffYear, iDiffMonth, iDiffDay)
+			header.ChangeTimestampDate(packet, iDiffYear, iDiffMonth, iDiffDay)
 		}
 
 		if *sOptTimeShift != "" {
 			// Allow for multiple time shifts to be passed at once
 			for _, ts := range timeShifts {
-				changeTimestampTimeOfDay(packet, ts)
+				header.ChangeTimestampTimeOfDay(packet, ts)
 			}
 
 		}
@@ -120,7 +124,7 @@ func main() {
 		// Change layer 2 MAC addresses as needed
 		// ---------------------------------------------------------------------
 		if *sOptMacAddress != "" && *sOptMacAddressNew != "" {
-			replaceMacAddresses(packet, userSuppliedMacAddress, userSuppliedMacAddressNew)
+			layer2.ReplaceMacAddresses(packet, userSuppliedMacAddress, userSuppliedMacAddressNew)
 		}
 
 		i802dot1QOffset := 0
@@ -159,12 +163,12 @@ func main() {
 
 			// Fix the MAC addresses in the ARP payload if we are fixing MAC addresses at layer 2
 			if *sOptMacAddress != "" && *sOptMacAddressNew != "" {
-				replaceArpPayloadMacAddresses(packet, i802dot1QOffset, userSuppliedMacAddress, userSuppliedMacAddressNew)
+				arp.ReplaceArpPayloadMacAddresses(packet, i802dot1QOffset, userSuppliedMacAddress, userSuppliedMacAddressNew)
 			}
 
 			// Fix the IP addresses in the ARP payload if we are changing layer 3 information
 			if *sOptIPv4Address != "" && *sOptIPv4AddressNew != "" {
-				replaceArpPayloadIPv4Addresses(packet, i802dot1QOffset, userSuppliedIPv4Address, userSuppliedIPv4AddressNew)
+				arp.ReplaceArpPayloadIPv4Addresses(packet, i802dot1QOffset, userSuppliedIPv4Address, userSuppliedIPv4AddressNew)
 			}
 
 			iArpCounter++
@@ -174,7 +178,7 @@ func main() {
 		// Change Layer 3 information
 		// ---------------------------------------------------------------------
 		if *sOptIPv4Address != "" && *sOptIPv4AddressNew != "" {
-			replaceIPv4Addresses(packet, i802dot1QOffset, userSuppliedIPv4Address, userSuppliedIPv4AddressNew)
+			layer3.ReplaceIPv4Addresses(packet, i802dot1QOffset, userSuppliedIPv4Address, userSuppliedIPv4AddressNew)
 		}
 
 		//
@@ -248,21 +252,3 @@ func checkCommandLineOptions() {
 		os.Exit(0)
 	}
 } //checkCommandLineOptions()
-
-//
-// -----------------------------------------------------------------------------
-// areByteSlicesEqual
-// -----------------------------------------------------------------------------
-// Compare two byte slices to see if they are the same
-func areByteSlicesEqual(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-} // areByteSlicesEqual

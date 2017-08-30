@@ -1,22 +1,25 @@
-// Copyright 2014-2015 Bret Jordan, All rights reserved.
+// Copyright 2014-2017 Bret Jordan, All rights reserved.
 //
 // Use of this source code is governed by an Apache 2.0 license
 // that can be found in the LICENSE file in the root of the source
 // tree.
 
-package main
+package layer3
 
 import (
 	"fmt"
 	"github.com/google/gopacket"
+	"github.com/jordan2175/rewritecap/lib/common"
 	"net"
 )
 
+var iDebug = 0
+
 //
 // -----------------------------------------------------------------------------
-// replaceIPv4Addresses()
+// ReplaceIPv4Addresses()
 // -----------------------------------------------------------------------------
-func replaceIPv4Addresses(packet gopacket.Packet, i802dot1QOffset int, userSuppliedIPv4Address, userSuppliedIPv4AddressNew []byte) {
+func ReplaceIPv4Addresses(packet gopacket.Packet, i802dot1QOffset int, userSuppliedIPv4Address, userSuppliedIPv4AddressNew []byte) {
 	iEthType1 := 12 + i802dot1QOffset
 	iEthType2 := 13 + i802dot1QOffset
 
@@ -33,7 +36,7 @@ func replaceIPv4Addresses(packet gopacket.Packet, i802dot1QOffset int, userSuppl
 		dstIPv4AddressFromPacket := packet.NetworkLayer().LayerContents()[iLayer3DstIPStart:iLayer3DstIPEnd]
 
 		// Update SRC IP address
-		bSrcIPv4AddressMatch := areByteSlicesEqual(srcIPv4AddressFromPacket, userSuppliedIPv4Address)
+		bSrcIPv4AddressMatch := common.AreByteSlicesEqual(srcIPv4AddressFromPacket, userSuppliedIPv4Address)
 		if bSrcIPv4AddressMatch {
 			if iDebug == 1 {
 				fmt.Println("DEBUG: There is a match on the SRC IPv4 Address, updating", userSuppliedIPv4Address, "to", userSuppliedIPv4AddressNew)
@@ -46,7 +49,7 @@ func replaceIPv4Addresses(packet gopacket.Packet, i802dot1QOffset int, userSuppl
 		}
 
 		// Update DST IP address
-		bDstIPv4AddressMatch := areByteSlicesEqual(dstIPv4AddressFromPacket, userSuppliedIPv4Address)
+		bDstIPv4AddressMatch := common.AreByteSlicesEqual(dstIPv4AddressFromPacket, userSuppliedIPv4Address)
 		if bDstIPv4AddressMatch {
 			if iDebug == 1 {
 				fmt.Println("DEBUG: There is a match on the DST IPv4 Address, updating", userSuppliedIPv4Address, "to", userSuppliedIPv4AddressNew)
@@ -58,14 +61,14 @@ func replaceIPv4Addresses(packet gopacket.Packet, i802dot1QOffset int, userSuppl
 			}
 		}
 	}
-} // replaceIPv4Addresses()
+} // ReplaceIPv4Addresses()
 
 //
 // -----------------------------------------------------------------------------
-// parseSuppliedLayer3IPv4Addresses()
+// ParseSuppliedLayer3IPv4Address()
 // -----------------------------------------------------------------------------
 // Figure out if we need to change a layer 3 IPv4 address
-func parseSuppliedLayer3IPv4Address(address string) []byte {
+func ParseSuppliedLayer3IPv4Address(address string) []byte {
 	userSuppliedIPv4Address := make([]byte, 4, 4)
 
 	// Since ParseIP returns a 16 byte slice (aka 128 bit address to accomodate IPv6)
@@ -80,4 +83,4 @@ func parseSuppliedLayer3IPv4Address(address string) []byte {
 	}
 
 	return userSuppliedIPv4Address
-} // parseSuppliedLayer3IPv4Addresses()
+} // ParseSuppliedLayer3IPv4Address()

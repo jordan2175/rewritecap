@@ -1,27 +1,27 @@
-// Copyright 2014-2015 Bret Jordan, All rights reserved.
+// Copyright 2014-2017 Bret Jordan, All rights reserved.
 //
 // Use of this source code is governed by an Apache 2.0 license
 // that can be found in the LICENSE file in the root of the source
 // tree.
 
-package main
+package arp
 
 import (
-	//"encoding/hex"
 	"fmt"
 	"github.com/google/gopacket"
-	//"net"
-	//"os"
-	//"strings"
+	"github.com/jordan2175/rewritecap/lib/common"
+	"github.com/jordan2175/rewritecap/lib/layer2"
 )
+
+var iDebug = 0
 
 //
 // -----------------------------------------------------------------------------
-// replaceArpPayloadMacAddresses()
+// ReplaceArpPayloadMacAddresses()
 // -----------------------------------------------------------------------------
 // Lets compare the mac address supplied with the one in the ARP packet for both
 // the SRC MAC and TARGET MAC in the ARP Payload
-func replaceArpPayloadMacAddresses(packet gopacket.Packet, i802dot1QOffset int, userSuppliedMacAddress, userSuppliedMacAddressNew []byte) {
+func ReplaceArpPayloadMacAddresses(packet gopacket.Packet, i802dot1QOffset int, userSuppliedMacAddress, userSuppliedMacAddressNew []byte) {
 	// Define the byte offsets for the data we are looking for
 	iArpSenderMacStart := 8 + i802dot1QOffset
 	iArpSenderMacEnd := iArpSenderMacStart + 6
@@ -32,10 +32,10 @@ func replaceArpPayloadMacAddresses(packet gopacket.Packet, i802dot1QOffset int, 
 	targetMacAddressFromArpPacket := packet.LinkLayer().LayerPayload()[iArpTargetMacStart:iArpTargetMacEnd]
 
 	// Sender MAC in payload
-	bSenderMacAddressMatch := areByteSlicesEqual(senderMacAddressFromArpPacket, userSuppliedMacAddress)
+	bSenderMacAddressMatch := common.AreByteSlicesEqual(senderMacAddressFromArpPacket, userSuppliedMacAddress)
 	if bSenderMacAddressMatch {
 		if iDebug == 1 {
-			fmt.Println("DEBUG: There is a match on the ARP Sender MAC Address, updating", makePrettyMacAddress(userSuppliedMacAddress), "to", makePrettyMacAddress(userSuppliedMacAddressNew))
+			fmt.Println("DEBUG: There is a match on the ARP Sender MAC Address, updating", layer2.MakePrettyMacAddress(userSuppliedMacAddress), "to", layer2.MakePrettyMacAddress(userSuppliedMacAddressNew))
 		}
 
 		j := 0
@@ -46,10 +46,10 @@ func replaceArpPayloadMacAddresses(packet gopacket.Packet, i802dot1QOffset int, 
 	}
 
 	// Target MAC in payload
-	bTargetMacAddressMatch := areByteSlicesEqual(targetMacAddressFromArpPacket, userSuppliedMacAddress)
+	bTargetMacAddressMatch := common.AreByteSlicesEqual(targetMacAddressFromArpPacket, userSuppliedMacAddress)
 	if bTargetMacAddressMatch {
 		if iDebug == 1 {
-			fmt.Println("DEBUG: There is a match on the ARP Target MAC Address, updating", makePrettyMacAddress(userSuppliedMacAddress), "to", makePrettyMacAddress(userSuppliedMacAddressNew))
+			fmt.Println("DEBUG: There is a match on the ARP Target MAC Address, updating", layer2.MakePrettyMacAddress(userSuppliedMacAddress), "to", layer2.MakePrettyMacAddress(userSuppliedMacAddressNew))
 		}
 
 		j := 0
@@ -58,15 +58,15 @@ func replaceArpPayloadMacAddresses(packet gopacket.Packet, i802dot1QOffset int, 
 			j++
 		}
 	}
-} // replaceArpPayloadMacAddresses()
+} // ReplaceArpPayloadMacAddresses()
 
 //
 // -----------------------------------------------------------------------------
-// replaceArpPayloadIPv4Addresses()
+// ReplaceArpPayloadIPv4Addresses()
 // -----------------------------------------------------------------------------
 // Lets compare the IPv4 address supplied with the one in the ARP packet for both
 // the SRC IP and TARGET IP in the ARP Payload
-func replaceArpPayloadIPv4Addresses(packet gopacket.Packet, i802dot1QOffset int, userSuppliedIPv4Address, userSuppliedIPv4AddressNew []byte) {
+func ReplaceArpPayloadIPv4Addresses(packet gopacket.Packet, i802dot1QOffset int, userSuppliedIPv4Address, userSuppliedIPv4AddressNew []byte) {
 	// Make sure the apr.proto.type is 0800
 	if packet.LinkLayer().LayerPayload()[2] == 8 && packet.LinkLayer().LayerPayload()[3] == 0 {
 		if iDebug == 1 {
@@ -81,7 +81,7 @@ func replaceArpPayloadIPv4Addresses(packet gopacket.Packet, i802dot1QOffset int,
 		senderIPv4AddressFromArpPacket := packet.LinkLayer().LayerPayload()[iArpSenderIPStart:iArpSenderIPEnd]
 		targetIPv4AddressFromArpPacket := packet.LinkLayer().LayerPayload()[iArpTargetIPStart:iArpTargetIPEnd]
 
-		bSenderIPv4AddressMatch := areByteSlicesEqual(senderIPv4AddressFromArpPacket, userSuppliedIPv4Address)
+		bSenderIPv4AddressMatch := common.AreByteSlicesEqual(senderIPv4AddressFromArpPacket, userSuppliedIPv4Address)
 		if bSenderIPv4AddressMatch {
 			if iDebug == 1 {
 				fmt.Println("DEBUG: There is a match on the ARP Sender IPv4 Address, updating", userSuppliedIPv4Address, "to", userSuppliedIPv4AddressNew)
@@ -93,7 +93,7 @@ func replaceArpPayloadIPv4Addresses(packet gopacket.Packet, i802dot1QOffset int,
 			}
 		}
 
-		bTargetIPv4AddressMatch := areByteSlicesEqual(targetIPv4AddressFromArpPacket, userSuppliedIPv4Address)
+		bTargetIPv4AddressMatch := common.AreByteSlicesEqual(targetIPv4AddressFromArpPacket, userSuppliedIPv4Address)
 		if bTargetIPv4AddressMatch {
 			if iDebug == 1 {
 				fmt.Println("DEBUG: There is a match on the ARP Target IPv4 Address, updating", userSuppliedIPv4Address, "to", userSuppliedIPv4AddressNew)
@@ -105,4 +105,4 @@ func replaceArpPayloadIPv4Addresses(packet gopacket.Packet, i802dot1QOffset int,
 			}
 		}
 	}
-} // replaceArpPayloadIPv4Addresses()
+} // ReplaceArpPayloadIPv4Addresses()
