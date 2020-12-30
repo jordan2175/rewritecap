@@ -1,6 +1,6 @@
 # rewritecap #
 
-[![GoDoc](https://godoc.org/github.com/jordan2175/rewritecap?status.png)](https://godoc.org/github.com/jordan2175/rewritecap)
+[![Go Report Card](https://goreportcard.com/badge/github.com/jordan2175/rewritecap)](https://goreportcard.com/report/github.com/jordan2175/rewritecap)  [![GoDoc](https://godoc.org/github.com/jordan2175/rewritecap?status.png)](https://godoc.org/github.com/jordan2175/rewritecap)
 
 A tool for rebasing a PCAP file, editing layer2 and layer3 addresses, and updating 
 ARP packets. PCAP-ng files are not currently supported. This tool will accommodate 
